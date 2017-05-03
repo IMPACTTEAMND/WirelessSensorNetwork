@@ -48,10 +48,9 @@
 #define T_0                         298.15      // Temp in kelvin at 25C
 #define MYCHANNEL                   25
 #define CODE_VERSION                15
-#define MAX_PACKET_SEQUENCE         5
-#define MAX_PACKET_SIZE             50         
-#define MAX_DATA_PACKET             22          // Max data packet= (MAX_PACKET_SIZE-HEADERCOOMANDSIZE)/2
-#define ADC_CALC_MAX_TIME_MS        200
+#define MAX_PACKET_SEQUENCE         5       
+#define MAX_DATA_SIZE               40          // Max data packet= (MAX_PACKET_SIZE-HEADERCOOMANDSIZE)/2
+#define ADC_CALC_MAX_TIME_MS        400
 #define SELF_CALIBRATE_MAX_TIME_MS  150
 #define RX_TIME                     1
 #define HEADERCOOMANDSIZE           3
@@ -88,6 +87,7 @@ enum
 /* -- TYPEDEFS and STRUCTURES -- */
 typedef enum
 {
+    INACTIVE,
     REQ_ADC_CALC,
     REQ_SLAVE_RES,        
 } MASTER_STATES_E;
@@ -107,15 +107,15 @@ typedef enum
 /* -- STATIC AND GLOBAL VARIABLES -- */
 
  static const BYTE kabySlaves[] = { SLAVE_0_ID, SLAVE_1_ID };
- static int  ADCValue[MAX_PACKET_SEQUENCE][MAX_DATA_PACKET] ;
+ static int  ADCValue[MAX_PACKET_SEQUENCE][MAX_DATA_SIZE] ;
  static unsigned long TotalHundredMicroseconds; 
  static BYTE MissingPacketSequence;
  static BYTE byHundredMicroseconds1stByte;                 // First Byte for Milliseconds 
  static BYTE byHundredMicroseconds2ndByte;                // Second Byte for Milliseconds
  static BYTE byHundredMicroseconds3rdByte;               //  Third Byte for Milliseconds
  static BYTE byHundredMicroseconds4thByte;              //  Fourth Byte for Milliseconds
- static BYTE byADCHighValue[MAX_PACKET_SEQUENCE][MAX_DATA_PACKET];
- static BYTE byADCLowValue[MAX_PACKET_SEQUENCE][MAX_DATA_PACKET];
+ static BYTE byADCHighValue[MAX_PACKET_SEQUENCE][MAX_DATA_SIZE];
+ static BYTE byADCLowValue[MAX_PACKET_SEQUENCE][MAX_DATA_SIZE];
  static BYTE byCheckSum[MAX_PACKET_SEQUENCE] ={0};      // this CheckSum is an array, the value could only be 1 or 0, 1 means received, 0 means haven't received 
 /* -- STATIC FUNCTION PROTOTYPES -- */
 static void scMainInit(void);
@@ -125,7 +125,7 @@ static BOOL scfReceive(RECEIVED_MESSAGE *stReceiveMessageBuffer);
 static void scDoGlobalADCRequest(void);
 static void scReqSlaveStatus(const BYTE kbySlaveID, BYTE byPacketSequence);
 static void scReqMissingPack(const BYTE kbySkaveID, BYTE byMissPacketSequence);
-static void scPrintConsole(BYTE bySlaveID);
+static void scPrintConsole(BYTE bySlaveID,BYTE PacketSequence);
 static void scCollectandSortMessage(BYTE PacketSequence,RECEIVED_MESSAGE stReceivedMessageBuffer);
 static BOOL scMessageFullyReceive(void);
 
@@ -224,21 +224,26 @@ int main(void)
     /* Function Static variables */
     
     /* Local Variables */
+    BYTE PressedButton;
     BYTE bySlaveIndex = 0;
     BYTE byPacketSequence = 0;
     RECEIVED_MESSAGE stReceivedMessage = (RECEIVED_MESSAGE) {0};
-    MASTER_STATES_E eMasterStates = REQ_ADC_CALC;   
+    MASTER_STATES_E eMasterStates = INACTIVE;   
     REQUEST_RESPOND_STATES_E eRequestRespondStates = REQ_FULL_MESSAGE;
     scMainInit();
     while(TRUE)
     {
         switch(eMasterStates)
         {
-            case REQ_ADC_CALC:
-//#ifdef DEBUG
-//               ConsolePutROMString((ROM char *)"REQ_ADC_CALC\r\n");
-//#endif /* ifndef DEBUG */
-               
+            case INACTIVE:
+                PressedButton = ButtonPressed();
+                if (PressedButton == 1)
+                {
+                    eMasterStates = REQ_ADC_CALC;
+                }
+                break;
+                        
+            case REQ_ADC_CALC:               
                DelayMs(SELF_CALIBRATE_MAX_TIME_MS);    
                scDoGlobalADCRequest();
                DelayMs(ADC_CALC_MAX_TIME_MS);   
@@ -274,13 +279,12 @@ int main(void)
                                             case SLAVE_ACKNOWLEDGE:                                    
                                                 ConsolePutROMString((ROM char *)"SLAVE_ACKNOWLEDGE\r\n"); 
                                                 byCheckSum[stReceivedMessage.Payload[SEQUENCE_INDEX]]=1;          // Fill in the CheckSum Array 
-                                                scCollectandSortMessage(stReceivedMessage.Payload[SEQUENCE_INDEX],stReceivedMessage);                                                                   
+                                                scCollectandSortMessage(stReceivedMessage.Payload[SEQUENCE_INDEX],stReceivedMessage);  
+                                                scPrintConsole(bySlaveIndex,byPacketSequence);
                                                 break;
 
                                             default:
-                                                ConsolePutROMString((ROM char *)"ERROR CASE, COMMAND_INDEX invalid\r\n");
-                                                 
-
+                                                ConsolePutROMString((ROM char *)"ERROR CASE, COMMAND_INDEX invalid\r\n");                                                 
                                                 break;
                                         }
                                     }
@@ -301,8 +305,7 @@ int main(void)
                         case CHECK_MESSAGE:
                             if (scMessageFullyReceive())
                             {
-                                /*print the message*/
-                                scPrintConsole(bySlaveIndex);
+                                ConsolePutROMString((ROM char *)"Message Fully Received");
                                 scClearCheckSum();                              // clear CheckSum after full receive the message  
                                 break;
                             }
@@ -488,7 +491,7 @@ static void scReqSlaveStatus(const BYTE kbySlaveID, BYTE byPacketSequence)
 
 static void scReqMissingPack(const BYTE kbySlaveID, BYTE byMissPacketSequence)
 {
-    const BYTE kabyDataBuffer[] = { kbySlaveID, REQ_MISS_MESSAGE_CMD, byMissPacketSequence };
+    const BYTE kabyDataBuffer[] = { kbySlaveID, REQ_STATUS_CMD, byMissPacketSequence };
     
     scTransmit((BYTE *)&kabyDataBuffer, sizeof(kabyDataBuffer)); 
 }
@@ -497,29 +500,18 @@ static void scReqMissingPack(const BYTE kbySlaveID, BYTE byMissPacketSequence)
 static void scCollectandSortMessage(BYTE PacketSequence,RECEIVED_MESSAGE stReceivedMessageBuffer)
 {
     BYTE byDataCount;
-    if(PacketSequence == 0)
-    {
-        byHundredMicroseconds1stByte=stReceivedMessageBuffer.Payload[TIME_1_BYTE];
-        byHundredMicroseconds2ndByte=stReceivedMessageBuffer.Payload[TIME_2_BYTE];
-        byHundredMicroseconds3rdByte=stReceivedMessageBuffer.Payload[TIME_3_BYTE];
-        byHundredMicroseconds4thByte=stReceivedMessageBuffer.Payload[TIME_4_BYTE];
-        TotalHundredMicroseconds = ((unsigned long)byHundredMicroseconds1stByte<<24)+((unsigned long)byHundredMicroseconds2ndByte<<16)+((unsigned int)byHundredMicroseconds3rdByte<<8)+byHundredMicroseconds4thByte;
-        for (byDataCount=0; byDataCount<MAX_DATA_PACKET;byDataCount++)
+    byHundredMicroseconds1stByte=stReceivedMessageBuffer.Payload[TIME_1_BYTE];
+    byHundredMicroseconds2ndByte=stReceivedMessageBuffer.Payload[TIME_2_BYTE];
+    byHundredMicroseconds3rdByte=stReceivedMessageBuffer.Payload[TIME_3_BYTE];
+    byHundredMicroseconds4thByte=stReceivedMessageBuffer.Payload[TIME_4_BYTE];
+    TotalHundredMicroseconds = ((unsigned long)byHundredMicroseconds1stByte<<24)+((unsigned long)byHundredMicroseconds2ndByte<<16)+((unsigned int)byHundredMicroseconds3rdByte<<8)+byHundredMicroseconds4thByte;
+    for (byDataCount=0; byDataCount<MAX_DATA_SIZE;byDataCount++)
         {
-            byADCHighValue[PacketSequence][byDataCount]=stReceivedMessageBuffer.Payload[2*byDataCount+HEADERCOOMANDSIZE+TIMEHEADERSIZE];
-            byADCHighValue[PacketSequence][byDataCount]=stReceivedMessageBuffer.Payload[2*byDataCount+HEADERCOOMANDSIZE+TIMEHEADERSIZE+1];
-            ADCValue[PacketSequence][byDataCount]= ((unsigned int) byADCHighValue[byDataCount] << 8) + byADCLowValue[byDataCount];     
-        }
-    }
-    else
-    {
-        for (byDataCount=0; byDataCount<MAX_DATA_PACKET;byDataCount++)
-        {
-            byADCHighValue[PacketSequence][byDataCount]=stReceivedMessageBuffer.Payload[2*byDataCount+HEADERCOOMANDSIZE];
-            byADCHighValue[PacketSequence][byDataCount]=stReceivedMessageBuffer.Payload[2*byDataCount+HEADERCOOMANDSIZE+1];
-            ADCValue[PacketSequence][byDataCount]= ((unsigned int) byADCHighValue[byDataCount] << 8) + byADCLowValue[byDataCount];     
-        }
-    }
+//            byADCHighValue[PacketSequence][byDataCount]=stReceivedMessageBuffer.Payload[2*byDataCount+HEADERCOOMANDSIZE+TIMEHEADERSIZE];
+            byADCLowValue[PacketSequence][byDataCount]=stReceivedMessageBuffer.Payload[2*byDataCount+HEADERCOOMANDSIZE+TIMEHEADERSIZE+1];
+//            ADCValue[PacketSequence][byDataCount]= ((unsigned int) byADCHighValue[PacketSequence][byDataCount] << 8) + byADCLowValue[PacketSequence][byDataCount];   
+            ADCValue[PacketSequence][byDataCount]=  byADCLowValue[PacketSequence][byDataCount];
+        }  
 }
 
 static void scClearCheckSum(void)
@@ -563,29 +555,26 @@ DATE             NAME               REVISION COMMENT
 04/18/2017       Ruisi Ge           updated Revision for multiple data
 
 *----------------------------------------------------------------------------*/
-static void scPrintConsole(BYTE bySlaveID)
+static void scPrintConsole(BYTE bySlaveID,BYTE PacketSequence )
 {   
     BYTE byDataCount;
-    BYTE PacketSequence;
     char str[100];
     ConsolePutROMString((ROM char*)"Node ");   
     ConsolePut(bySlaveID % 10 + '0');
     ConsolePutROMString((ROM char*)" | ");
     ConsolePutROMString((ROM char*)"Sequence ");
+    ConsolePut(PacketSequence % 10 + '0');
+    ConsolePutROMString((ROM char*)" | ");
     ConsolePutROMString((ROM char*)"Start Time ");
     sprintf(str,"%lu",TotalHundredMicroseconds);
     ConsolePutROMString((ROM char*)str);
     ConsolePutROMString((ROM char*)" | ");
-    for (PacketSequence = 0;PacketSequence<MAX_PACKET_SEQUENCE;PacketSequence++)
-    {
-        for (byDataCount =0;byDataCount<MAX_DATA_PACKET;byDataCount++)
-        {
-            ConsolePutROMString((ROM char*)"Value  ");
-            sprintf(str, "%d", ADCValue[PacketSequence][byDataCount]);
-            ConsolePutROMString((ROM char*)str); 
-            ConsolePutROMString((ROM char*)" | ");
-        }
-    }
-    
+    for (byDataCount =0;byDataCount<MAX_DATA_SIZE;byDataCount++)
+    {   
+        ConsolePutROMString((ROM char*)"Value  ");
+        sprintf(str, "%d", ADCValue[PacketSequence][byDataCount]);
+        ConsolePutROMString((ROM char*)str); 
+        ConsolePutROMString((ROM char*)" | ");
+    }        
 }
 
