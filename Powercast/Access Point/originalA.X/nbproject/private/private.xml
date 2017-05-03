@@ -4,9 +4,13 @@
     <open-files xmlns="http://www.netbeans.org/ns/projectui-open-files/2">
         <group>
             <file>file:/C:/Projects/WirelessSensorNetwork/Microchip/WirelessProtocols/P2P/P2P.c</file>
-            <file>file:/C:/Projects/WirelessSensorNetwork/Microchip/Common/TimeDelay.c</file>
             <file>file:/C:/Projects/WirelessSensorNetwork/Powercast/Access%20Point/AccessPoint.c</file>
-            <file>file:/C:/Projects/WirelessSensorNetwork/Microchip/Common/MSPI.c</file>
+            <file>file:/C:/Projects/WirelessSensorNetwork/Microchip/Common/Console.c</file>
+            <file>file:/C:/Projects/WirelessSensorNetwork/Microchip/Include/Transceivers/MRF24J40/MRF24J40.h</file>
+            <file>file:/C:/Projects/WirelessSensorNetwork/Microchip/Include/WirelessProtocols/P2P/P2P.h</file>
+            <file>file:/C:/Projects/WirelessSensorNetwork/Microchip/Include/Transceivers/MCHP_MAC.h</file>
+            <file>file:/C:/Projects/WirelessSensorNetwork/Microchip/WirelessProtocols/MiWi/MiWi.c</file>
+            <file>file:/C:/Projects/WirelessSensorNetwork/Microchip/Transceivers/MRF24J40/MRF24J40.c</file>
         </group>
     </open-files>
 </project-private>

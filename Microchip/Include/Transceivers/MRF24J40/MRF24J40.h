@@ -347,6 +347,5 @@
             //BYTE        RX_ENABLED          : 1;
         } bits;
     } MRF24J40_STATUS;
-
 #endif
 

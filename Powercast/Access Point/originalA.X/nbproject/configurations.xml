@@ -106,7 +106,7 @@
         <targetDevice>PIC24F16KA102</targetDevice>
         <targetHeader></targetHeader>
         <targetPluginBoard></targetPluginBoard>
-        <platformTool>Simulator</platformTool>
+        <platformTool>PICkit3PlatformTool</platformTool>
         <languageToolchain>XC16</languageToolchain>
         <languageToolchainVersion>1.26</languageToolchainVersion>
         <platform>3</platform>

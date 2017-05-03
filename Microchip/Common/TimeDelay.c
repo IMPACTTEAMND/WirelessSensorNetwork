@@ -67,7 +67,7 @@ YFY 2010.05.28  MIWI DE 3.1
   Remarks:
     None
   ***************************************************************************/
-void Delay10us( UINT32 tenMicroSecondCounter )
+inline void Delay10us( UINT32 tenMicroSecondCounter )
 {
     volatile INT32 cyclesRequiredForEntireDelay;    
         

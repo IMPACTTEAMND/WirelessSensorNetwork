@@ -965,6 +965,8 @@
     #define MiApp_CB_AllowConnection(x) TRUE
 
     extern RECEIVED_MESSAGE rxMessage;
+    /*this variable is used for accespoint , only for testing */
+
     #if defined(ENABLE_TIME_SYNC)
         extern WORD_VAL CounterValue;
         extern WORD_VAL WakeupTimes;
