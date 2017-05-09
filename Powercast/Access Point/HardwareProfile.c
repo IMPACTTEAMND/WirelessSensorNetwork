@@ -122,7 +122,16 @@
    		_FICD(ICS_PGx3 & BKBUG_ON)
    		_FPOR(MCLRE_ON & BORV_V18 & PWRTEN_OFF & BOREN_BOR0);
 	#endif
+
+    #if defined (__PIC24F32KA302__)
+    _FOSC(POSCMOD_HS & FCKSM_CSECMD & POSCFREQ_MS & OSCIOFNC_ON & SOSCSEL_SOSCLP)
+    _FOSCSEL(FNOSC_PRI & IESO_ON)
+    _FWDT(FWDTEN_OFF & WDTPS_PS2)				// Disable Watchdog timer
+     _FICD(ICS_PGx3)   //UPDATED
+    _FPOR(MCLRE_ON & BORV_V18 & PWRTEN_OFF & BOREN_BOR0);
+    #endif
 	
+    
 #elif defined(__PIC24F__) || defined(__PIC24FK__)
 // Explorer 16 board
 	_CONFIG2(FNOSC_PRI & POSCMOD_XT)		// Primary XT OSC with 4x PLL
@@ -187,7 +196,10 @@ void BoardInit(void)
         INTCON2bits.INT1EP = 1;
 
         // Make all pins as Digital input, bandgap reference enabled
-        AD1PCFG = 0x7FFF;  
+        AD1PCFG = 0x7FFF;           // Make all pins as Digital input, bandgap reference enabled
+        /*this is used for the pic24f32ka302*/
+//        ANSA=0x0000;
+//        ANSB=0x0000;    // make all pins are digital input, this used for pic24FKA302
 
         // Enable internal pull ups for buttons
         PUSH_BUTTON_1_PULLUP = 1;

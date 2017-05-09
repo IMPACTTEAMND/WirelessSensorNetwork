@@ -49,12 +49,12 @@
 #define MYCHANNEL                   25
 #define CODE_VERSION                15
 #define MAX_PACKET_SEQUENCE         5       
-#define MAX_DATA_SIZE               40          // Max data packet= (MAX_PACKET_SIZE-HEADERCOOMANDSIZE)/2
-#define ADC_CALC_MAX_TIME_MS        400
-#define SELF_CALIBRATE_MAX_TIME_MS  150
+#define MAX_DATA_SIZE               50          // Max data packet= (MAX_PACKET_SIZE-HEADERCOOMANDSIZE)/2
+#define ADC_CALC_MAX_TIME_MS        200
 #define RX_TIME                     1
 #define HEADERCOOMANDSIZE           3
 #define TIMEHEADERSIZE              4
+#define THRESHHOLDVALUEHEADER       1
 
 enum
 {
@@ -82,6 +82,7 @@ enum
     TIME_2_BYTE,
     TIME_3_BYTE,
     TIME_4_BYTE,
+    MAX_VALUE_LOW_BYTE,
 };
 
 /* -- TYPEDEFS and STRUCTURES -- */
@@ -89,7 +90,7 @@ typedef enum
 {
     INACTIVE,
     REQ_ADC_CALC,
-    REQ_SLAVE_RES,        
+    REQ_SLAVE_RES,
 } MASTER_STATES_E;
 typedef enum
 {
@@ -107,15 +108,14 @@ typedef enum
 /* -- STATIC AND GLOBAL VARIABLES -- */
 
  static const BYTE kabySlaves[] = { SLAVE_0_ID, SLAVE_1_ID };
- static int  ADCValue[MAX_PACKET_SEQUENCE][MAX_DATA_SIZE] ;
+ static unsigned int  ADCValue[MAX_PACKET_SEQUENCE][MAX_DATA_SIZE] ;
+ static unsigned int  MaxThreshouldValue;                     // Max threshhold value received 
  static unsigned long TotalHundredMicroseconds; 
  static BYTE MissingPacketSequence;
  static BYTE byHundredMicroseconds1stByte;                 // First Byte for Milliseconds 
  static BYTE byHundredMicroseconds2ndByte;                // Second Byte for Milliseconds
  static BYTE byHundredMicroseconds3rdByte;               //  Third Byte for Milliseconds
  static BYTE byHundredMicroseconds4thByte;              //  Fourth Byte for Milliseconds
- static BYTE byADCHighValue[MAX_PACKET_SEQUENCE][MAX_DATA_SIZE];
- static BYTE byADCLowValue[MAX_PACKET_SEQUENCE][MAX_DATA_SIZE];
  static BYTE byCheckSum[MAX_PACKET_SEQUENCE] ={0};      // this CheckSum is an array, the value could only be 1 or 0, 1 means received, 0 means haven't received 
 /* -- STATIC FUNCTION PROTOTYPES -- */
 static void scMainInit(void);
@@ -188,7 +188,6 @@ static void scMainInit(void)
         #if defined(__18CXX)
         return;
         #else
-
         return 0;
         #endif
     }
@@ -243,30 +242,21 @@ int main(void)
                 }
                 break;
                         
-            case REQ_ADC_CALC:               
-               DelayMs(SELF_CALIBRATE_MAX_TIME_MS);    
+            case REQ_ADC_CALC:                   
                scDoGlobalADCRequest();
                DelayMs(ADC_CALC_MAX_TIME_MS);   
-                
                eMasterStates = REQ_SLAVE_RES;
                break;
 
-            case REQ_SLAVE_RES:
-                for (bySlaveIndex = 0; bySlaveIndex < sizeof(kabySlaves); bySlaveIndex++)
-                {
-                     
-                    eRequestRespondStates = REQ_FULL_MESSAGE;      //  Whenever start a new device, go to the request full message states
+            case REQ_SLAVE_RES:               
                     switch(eRequestRespondStates)
                     {
-                        case REQ_FULL_MESSAGE:
+                        case REQ_FULL_MESSAGE:                            
                             for(byPacketSequence = 0;byPacketSequence < MAX_PACKET_SEQUENCE;byPacketSequence++)
                             {   
                                 scReqSlaveStatus(kabySlaves[bySlaveIndex],byPacketSequence );
                                 if (scfReceive(&stReceivedMessage))
                                 {   
-            #ifdef DEBUG
-                           ConsolePutROMString((ROM char *)"received\r\n");
-            #endif /* ifndef DEBUG */
                                     if (stReceivedMessage.Payload[SLAVE_ID_INDEX] == bySlaveIndex)
                                     {
                                         switch ((SLAVE_RES_STATES_E)stReceivedMessage.Payload[COMMAND_INDEX])
@@ -288,32 +278,32 @@ int main(void)
                                                 break;
                                         }
                                     }
-                                    else
-                                    {
-                                        // Error case
-                                        break;
-                                    }
-                                }
-                                else
-                                {
-                                    // Error case
-                                    break;
                                 }
                             }
                             eRequestRespondStates= CHECK_MESSAGE;
                             break;
+                                                       
                         case CHECK_MESSAGE:
-                            if (scMessageFullyReceive())
+                            if (scMessageFullyReceive())                        // when Message fully received 
                             {
                                 ConsolePutROMString((ROM char *)"Message Fully Received");
-                                scClearCheckSum();                              // clear CheckSum after full receive the message  
+                                scClearCheckSum();                              // clear CheckSum after full receive the message     
+                                bySlaveIndex = bySlaveIndex+1;                 // when ever fully received, move on to the next node
+                                if (bySlaveIndex ==sizeof(kabySlaves) )         // when reach to the size, reset SlaveIndex and go to the ADC request state
+                                {
+                                    bySlaveIndex = 0;                          // go to the first slave
+                                    eMasterStates = REQ_ADC_CALC;
+                                    eRequestRespondStates = REQ_FULL_MESSAGE;
+                                    break;    
+                                }
+                                eRequestRespondStates = REQ_FULL_MESSAGE;        // else it only remains on the request respond states,
                                 break;
                             }
-                            else
+                            else                                                // when Message is not fully received, go to he request miss message state
                             {
                                 eRequestRespondStates = REQ_MISS_MESSAGE;
                                 break;
-                            }   
+                            } 
                             break;
                         
                         case REQ_MISS_MESSAGE:
@@ -341,24 +331,12 @@ int main(void)
                                                 break;
                                         }
                                     }
-                                    else
-                                    {
-                                        // Error case
-                                        break;
-                                    }
-                                }
-                                else
-                                {
-                                    // Error case
-                                    break;
-                                }                            
+                                }                 
                             eRequestRespondStates = CHECK_MESSAGE;
-                            break;
-                 
-                    }
-                }
-                eMasterStates = REQ_ADC_CALC;                    
+                            break;                
+                    }              
                 break;
+                
             default:
                 // Error case
                 eMasterStates = REQ_ADC_CALC;
@@ -504,13 +482,13 @@ static void scCollectandSortMessage(BYTE PacketSequence,RECEIVED_MESSAGE stRecei
     byHundredMicroseconds2ndByte=stReceivedMessageBuffer.Payload[TIME_2_BYTE];
     byHundredMicroseconds3rdByte=stReceivedMessageBuffer.Payload[TIME_3_BYTE];
     byHundredMicroseconds4thByte=stReceivedMessageBuffer.Payload[TIME_4_BYTE];
+    MaxThreshouldValue=stReceivedMessageBuffer.Payload[MAX_VALUE_LOW_BYTE];
     TotalHundredMicroseconds = ((unsigned long)byHundredMicroseconds1stByte<<24)+((unsigned long)byHundredMicroseconds2ndByte<<16)+((unsigned int)byHundredMicroseconds3rdByte<<8)+byHundredMicroseconds4thByte;
+    
     for (byDataCount=0; byDataCount<MAX_DATA_SIZE;byDataCount++)
         {
-//            byADCHighValue[PacketSequence][byDataCount]=stReceivedMessageBuffer.Payload[2*byDataCount+HEADERCOOMANDSIZE+TIMEHEADERSIZE];
-            byADCLowValue[PacketSequence][byDataCount]=stReceivedMessageBuffer.Payload[2*byDataCount+HEADERCOOMANDSIZE+TIMEHEADERSIZE+1];
-//            ADCValue[PacketSequence][byDataCount]= ((unsigned int) byADCHighValue[PacketSequence][byDataCount] << 8) + byADCLowValue[PacketSequence][byDataCount];   
-            ADCValue[PacketSequence][byDataCount]=  byADCLowValue[PacketSequence][byDataCount];
+            ADCValue[PacketSequence][byDataCount]=stReceivedMessageBuffer.Payload[byDataCount+HEADERCOOMANDSIZE+TIMEHEADERSIZE+THRESHHOLDVALUEHEADER]; // this only receive the lower 8 BYTE of the ADC value, the Max is 300 mv  
+            
         }  
 }
 
@@ -569,9 +547,12 @@ static void scPrintConsole(BYTE bySlaveID,BYTE PacketSequence )
     sprintf(str,"%lu",TotalHundredMicroseconds);
     ConsolePutROMString((ROM char*)str);
     ConsolePutROMString((ROM char*)" | ");
+    ConsolePutROMString((ROM char*)"threshold value ");
+    sprintf(str, "%d", MaxThreshouldValue );
+    ConsolePutROMString((ROM char*)str);
+    ConsolePutROMString((ROM char*)" | ADC | ");    
     for (byDataCount =0;byDataCount<MAX_DATA_SIZE;byDataCount++)
     {   
-        ConsolePutROMString((ROM char*)"Value  ");
         sprintf(str, "%d", ADCValue[PacketSequence][byDataCount]);
         ConsolePutROMString((ROM char*)str); 
         ConsolePutROMString((ROM char*)" | ");

@@ -51,12 +51,13 @@
 #define CALIBRATE_DATA_SIZE 10
 #define SELF_CALIBRATE_MAX_TIME_MS    150
 #define MAX_PACKET_SIZE     100
-#define MAX_DATA_SIZE       40          // 
-#define TEST_MAX            2
+#define MAX_DATA_SIZE       50          
+#define TEST_MAX            2          // test value, need to delete it later
 #define MAX_PACKET_SEQUENCE 5 
 #define UNDEFINED           0
 #define HEADERCOOMANDSIZE   3         // header include 1 BYTE DEVICE ID,1 BYTE COMMAND, 1 BYTE SEQUENCE, 4 BYTE TIME  
 #define TIMEHEADERSIZE      4         // Timer header include 4 byte timer header size
+#define THRESHHOLDVALUEHEADER 1       // Threshhold value size 1
 
 /* Uncomment for debugging */
 //#define DEBUG
@@ -80,6 +81,7 @@ enum
     TIME_2_BYTE,
     TIME_3_BYTE,
     TIME_4_BYTE,
+    MAX_VALUE_LOW_BYTE
 };
 
 /* -- TYPEDEFS and STRUCTURES -- */
@@ -114,14 +116,15 @@ typedef enum
 /* -- STATIC AND GLOBAL VARIABLES -- */
 static unsigned int  scMaxThreshhold=0;
 static unsigned int  scMaxThreshholdQue[CALIBRATE_DATA_SIZE]= {0};
+static BOOL ADCFlag;
 static uint32_t scHundredMicroseconds;
-static unsigned char scHundredMicroseconds1stByte;      // First Byte for Milliseconds 
-static unsigned char scHundredMicroseconds2ndByte;       // Second Byte for Milliseconds
-static unsigned char scHundredMicroseconds3rdByte;
+static unsigned char scHundredMicroseconds1stByte;          // First Byte for Milliseconds 
+static unsigned char scHundredMicroseconds2ndByte;         // Second Byte for Milliseconds
+static unsigned char scHundredMicroseconds3rdByte;        // Third Byte for Milliseconds
 static unsigned char scHundredMicroseconds4thByte; 
+static unsigned char scMaxThreshholdL;                  // Low BYTE value for MaxThreshhold
 static unsigned int  scADCValue[MAX_PACKET_SEQUENCE][MAX_DATA_SIZE]; 
 static unsigned char scabyResponseBuffer[MAX_PACKET_SIZE];
-static unsigned char scADCH[MAX_PACKET_SEQUENCE][MAX_DATA_SIZE];
 static unsigned char scADCL[MAX_PACKET_SEQUENCE][MAX_DATA_SIZE];
 static uint32_t scADCStartTime;
 /* -- STATIC FUNCTION PROTOTYPES -- */
@@ -287,7 +290,7 @@ int main(void)
                 break;
             case SLAVE_RES: //TODO: more work needed to make generic
                 scAllocateRespondBuffer(stReceivedMessage.Payload[SEQUENCE_INDEX]);
-                scTransmit((BYTE *)&scabyResponseBuffer, MAX_DATA_SIZE*2+HEADERCOOMANDSIZE+TIMEHEADERSIZE);    // how big the transmit buffer is 
+                scTransmit((BYTE *)&scabyResponseBuffer, MAX_DATA_SIZE+HEADERCOOMANDSIZE+TIMEHEADERSIZE+THRESHHOLDVALUEHEADER);    // how big the transmit buffer is 
                 eSlaveStates = INACTIVE;
                 break;
                 
@@ -300,6 +303,20 @@ int main(void)
     return 0;
 }
 
+/*----------------------------------------------------------------------------
+ 
+@Prototype: static unsigned int FindMax(void)
+ 
+@Description: find the max value of threshold value
+
+@Parameters: void 
+@Returns: Max Threshold Value 
+
+@Revision History:
+DATE             NAME               REVISION COMMENT
+05/01/2017       Ruisi Ge        Initial Revision
+
+*----------------------------------------------------------------------------*/
 static unsigned int FindMax(void)
 {
     unsigned int MaxValue;
@@ -314,6 +331,7 @@ static unsigned int FindMax(void)
     }
     return MaxValue;
 }
+
 /*----------------------------------------------------------------------------
  
 @Prototype: static SLAVE_STATES_E eConvertCommandToState(const BYTE kbyCommand)
@@ -332,7 +350,6 @@ DATE             NAME               REVISION COMMENT
 static SLAVE_STATES_E sceConvertCommandToState(const COMMANDS_E keCommand)
 {
     SLAVE_STATES_E eSlaveState = INACTIVE;
-
     switch (keCommand)
     {
         case CALC_ADC_CMD:
@@ -348,7 +365,6 @@ static SLAVE_STATES_E sceConvertCommandToState(const COMMANDS_E keCommand)
             eSlaveState = INACTIVE;
             break;
     }
-
     return eSlaveState;
 }
 
@@ -452,13 +468,15 @@ static unsigned int scADCRead(WORD wADCChannel)
 
     /* TODO: GET RID OF THIS, FOR SIMULATION PURPOSES ONLY */
     (void)wADCChannel;
+//    while(!ADCFlag);          // this doesn't work need to come up with other wat 
      LOCAL_ADCVal = SAMPLE_ADC_VALUE;
-    DelayMs(1);
-//    for(wI = 0; wI < 150; wI++)                                     // delay around 100 us 
+//    DelayMs(1);
+    for(wI = 0; wI < 150; wI++)                                     // delay around 100 us 
    
 //      Delay10us(100);
     return LOCAL_ADCVal;
 }
+
 /*----------------------------------------------------------------------------
  
 @Prototype: static void scSpiltData(void)
@@ -479,15 +497,14 @@ static void scSpiltData(void)
 {
     BYTE bySpiltDataCount;
     BYTE byPacketSequence;
-    BYTE test;
     for (byPacketSequence=0;byPacketSequence< MAX_PACKET_SEQUENCE;byPacketSequence++)
     {
         for (bySpiltDataCount=0;bySpiltDataCount< MAX_DATA_SIZE;bySpiltDataCount++)
         {
-            scADCH[byPacketSequence][bySpiltDataCount] = scADCValue[byPacketSequence][bySpiltDataCount] >> 8;
             scADCL[byPacketSequence][bySpiltDataCount] = scADCValue[byPacketSequence][bySpiltDataCount]; 
         }
     }
+   scMaxThreshholdL = TEST_MAX;
    scHundredMicroseconds1stByte=scADCStartTime>>24;
    scHundredMicroseconds2ndByte=scADCStartTime>>16;
    scHundredMicroseconds3rdByte=scADCStartTime>>8;
@@ -521,10 +538,10 @@ static void scAllocateRespondBuffer(BYTE PacketSequence)
     scabyResponseBuffer[TIME_2_BYTE] = scHundredMicroseconds2ndByte;
     scabyResponseBuffer[TIME_3_BYTE] = scHundredMicroseconds3rdByte;
     scabyResponseBuffer[TIME_4_BYTE] = scHundredMicroseconds4thByte;
+    scabyResponseBuffer[MAX_VALUE_LOW_BYTE] = scMaxThreshholdL;
     for (DataCount=0;DataCount< MAX_DATA_SIZE;DataCount++)
         {
-            scabyResponseBuffer[2*DataCount+HEADERCOOMANDSIZE+TIMEHEADERSIZE] = scADCH[PacketSequence][DataCount];
-            scabyResponseBuffer[2*DataCount+HEADERCOOMANDSIZE+TIMEHEADERSIZE+1] = scADCL[PacketSequence][DataCount];
+            scabyResponseBuffer[DataCount+HEADERCOOMANDSIZE+TIMEHEADERSIZE+THRESHHOLDVALUEHEADER] = scADCL[PacketSequence][DataCount];
         } 
 }
 
@@ -548,7 +565,6 @@ static void TimerInitiate (void)
 {
     scHundredMicroseconds = 0;
     T1CON = 0x0000; 		// stops the timer1 and reset control flag
-//  	TMR1 = 0x3CAF;       	// 0xFFFF - 0xC350 = 50,000 pulses = 100 msec count at Fosc=8MHz with Timer prescalar of 1:8  
     TMR1 = 0xFFCD;                          //0XFFFF - 0x0050=50 pulses = 	100 usec count at Fosc = 8MHZ with Timer prescalar of 1:8
   	IPC0bits.T1IP =0x3; 	// setup Timer1 interrupt for desired priority level
 	IEC0bits.T1IE = 1; 		// enable Timer1 interrupts	
@@ -567,13 +583,13 @@ static void TimerInitiate (void)
 * Side Effects:	    none
 *
 * Overview:		    Interrupt function for Timer1.  Set up to time out
-*					after 10 us, updates total time 
+*					after 100 us, updates total time 
 *
 * Note:			    
 **********************************************************************/
 void _ISRFAST __attribute__((interrupt, auto_psv)) _T1Interrupt(void) 
 {
-    scHundredMicroseconds++;
+    scHundredMicroseconds++;                // Calculate total time in hundred microseconds
    	IFS0bits.T1IF = 0;						// Clear Timer 1 interrupt flag
 	TMR1 = 0xFFCD;                          //0XFFFF - 0x0050=50 pulses = 	100 usec count at Fosc = 8MHZ with Timer prescalar of 1:8; 
 	return;
