@@ -487,7 +487,7 @@ static void scCollectandSortMessage(BYTE PacketSequence,RECEIVED_MESSAGE stRecei
     
     for (byDataCount=0; byDataCount<MAX_DATA_SIZE;byDataCount++)
         {
-            ADCValue[PacketSequence][byDataCount]=stReceivedMessageBuffer.Payload[byDataCount+HEADERCOOMANDSIZE+TIMEHEADERSIZE+THRESHHOLDVALUEHEADER]; // this only receive the lower 8 BYTE of the ADC value, the Max is 300 mv  
+            ADCValue[PacketSequence][byDataCount]=stReceivedMessageBuffer.Payload[byDataCount+HEADERCOOMANDSIZE+TIMEHEADERSIZE+THRESHHOLDVALUEHEADER]<<8; // this only receive the lower 8 BYTE of the ADC value, the Max is 300 mv  
             
         }  
 }

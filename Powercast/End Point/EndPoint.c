@@ -45,19 +45,20 @@
 #include <math.h>
 
 /* -- DEFINES and ENUMS -- */
-#define MYCHANNEL           25
-#define EXT_CHANNEL         2  
-#define SAMPLE_ADC_VALUE    5
-#define CALIBRATE_DATA_SIZE 10
+#define MYCHANNEL                     25
+#define EXT_CHANNEL                   2  
+#define TEMP_CHANNEL                  5
+#define SAMPLE_ADC_VALUE              8
+#define CALIBRATE_DATA_SIZE           10
 #define SELF_CALIBRATE_MAX_TIME_MS    150
-#define MAX_PACKET_SIZE     100
-#define MAX_DATA_SIZE       50          
-#define TEST_MAX            2          // test value, need to delete it later
-#define MAX_PACKET_SEQUENCE 5 
-#define UNDEFINED           0
-#define HEADERCOOMANDSIZE   3         // header include 1 BYTE DEVICE ID,1 BYTE COMMAND, 1 BYTE SEQUENCE, 4 BYTE TIME  
-#define TIMEHEADERSIZE      4         // Timer header include 4 byte timer header size
-#define THRESHHOLDVALUEHEADER 1       // Threshhold value size 1
+#define MAX_PACKET_SIZE               100
+#define MAX_DATA_SIZE                 50          
+#define TEST_MAX                      0         // test value, need to delete it later
+#define MAX_PACKET_SEQUENCE           5 
+#define UNDEFINED                     0
+#define HEADERCOOMANDSIZE             3         // header include 1 BYTE DEVICE ID,1 BYTE COMMAND, 1 BYTE SEQUENCE, 4 BYTE TIME  
+#define TIMEHEADERSIZE                4         // Timer header include 4 byte timer header size
+#define THRESHHOLDVALUEHEADER         1       // Threshhold value size 1
 
 /* Uncomment for debugging */
 //#define DEBUG
@@ -70,7 +71,7 @@ enum
     GLOBAL_ID = 0xFF
 };
 //TODO: EDIT THIS FOR UNIQUE SLAVE DEVICE
-#define UNIQUE_SLAVE SLAVE_0_ID
+#define UNIQUE_SLAVE SLAVE_1_ID
 
 enum
 {
@@ -154,7 +155,7 @@ static SLAVE_STATES_E sceConvertCommandToState(const COMMANDS_E keCommand);
 
 @Revision History:
 DATE             NAME               REVISION COMMENT
-04/07/2017       Ali Haidous        Initial Revision
+04/07/2017       Ruisi Ge       Initial Revision
 
 *----------------------------------------------------------------------------*/
 static void scMainInit(void)
@@ -169,8 +170,8 @@ static void scMainInit(void)
     // should be restored. In this simple example, we assume that the
     // network starts from scratch.
     /*******************************************************************/
-        
     SPI1STAT = 0x8000;  // Enable SPI bus to talk radio
+    
     MiApp_ProtocolInit(FALSE);
     // Set default channel
     MiApp_SetChannel(MYCHANNEL);
@@ -186,9 +187,9 @@ static void scMainInit(void)
     /*******************************************************************/
     MiApp_ConnectionMode(ENABLE_ALL_CONN);
 
-    /* Initialize static variables */
-    scADCValue[MAX_PACKET_SEQUENCE][MAX_DATA_SIZE] = 0 ;
-    scfSlaveStatus = SLAVE_NO_ACKNOWLEDGE;
+//    /* Initialize static variables */
+//    scADCValue[MAX_PACKET_SEQUENCE][MAX_DATA_SIZE] = 0 ;
+//    scfSlaveStatus = SLAVE_NO_ACKNOWLEDGE;
 
     for (byI = 0; byI < sizeof(scabyResponseBuffer); byI++)
     {
@@ -218,13 +219,15 @@ int main(void)
     BYTE byDataCount ;
     BYTE byPacketSequence ;
     BYTE byCalibrateDataCount=0;
+    scADCValue[MAX_PACKET_SEQUENCE][MAX_DATA_SIZE] = 0 ;
+    scfSlaveStatus = SLAVE_NO_ACKNOWLEDGE;
+//    BoardInit();
     scMainInit();
-    
-    while(TRUE)
+    while(1)
     {
         switch(eSlaveStates)
         {
-            case INACTIVE:        
+            case INACTIVE:   
                 if (scfReceive((RECEIVED_MESSAGE *)&stReceivedMessage))
                 {
                     if ((stReceivedMessage.Payload[SLAVE_ID_INDEX] == GLOBAL_ID) ||
@@ -263,9 +266,9 @@ int main(void)
                         eADCStates = ADC_INITIATE;
                         break;
                     case ADC_INITIATE:
-                        scADCValue[0][0]=scADCRead(EXT_CHANNEL);           
+                        scADCValue[0][0]=scADCRead(2);           //   orginal EXT_CHANNEL
                         scADCStartTime = scHundredMicroseconds;            // ADC Start recording time 
-                        if(scADCValue[0][0]>TEST_MAX)               // For test purpose only, the real variable is scMaxThreshhold
+                        if(scADCValue[0][0]>= TEST_MAX)               // For test purpose only, the real variable is scMaxThreshhold
                             {
                                eADCStates = ADC_MEASURING;
                             }
@@ -279,7 +282,7 @@ int main(void)
                         {
                             for(byDataCount =0;byDataCount<MAX_DATA_SIZE;byDataCount++)
                             {
-                                scADCValue[byPacketSequence][byDataCount] = scADCRead(EXT_CHANNEL);
+                                scADCValue[byPacketSequence][byDataCount] = scADCRead(2);
                             }
                         }                        
                         scSpiltData();    
@@ -288,7 +291,7 @@ int main(void)
                         break;
                 }        
                 break;
-            case SLAVE_RES: //TODO: more work needed to make generic
+            case SLAVE_RES: //TODO: more work needed to make generic;
                 scAllocateRespondBuffer(stReceivedMessage.Payload[SEQUENCE_INDEX]);
                 scTransmit((BYTE *)&scabyResponseBuffer, MAX_DATA_SIZE+HEADERCOOMANDSIZE+TIMEHEADERSIZE+THRESHHOLDVALUEHEADER);    // how big the transmit buffer is 
                 eSlaveStates = INACTIVE;
@@ -299,6 +302,7 @@ int main(void)
                 eSlaveStates = INACTIVE;
                 break;
         }
+        DelayMs(10);
     }
     return 0;
 }
@@ -344,7 +348,7 @@ static unsigned int FindMax(void)
 
 @Revision History:
 DATE             NAME               REVISION COMMENT
-04/13/2017       Ali Haidous        Initial Revision
+04/13/2017       Ruisi Ge        Initial Revision
 
 *----------------------------------------------------------------------------*/
 static SLAVE_STATES_E sceConvertCommandToState(const COMMANDS_E keCommand)
@@ -382,12 +386,17 @@ static SLAVE_STATES_E sceConvertCommandToState(const COMMANDS_E keCommand)
 @Revision History:
 DATE             NAME               REVISION COMMENT
 04/07/2017       Ali Haidous        Initial Revision
+05/01/2017       Ruisi Ge           Updated Revision
 
 *----------------------------------------------------------------------------*/
 static void scTransmit(BYTE * pbyTxBuffer, BYTE byLength)
 {
     BYTE byI;
-
+    
+    // The reason why we have to enable then disable the SPI
+    // bus is due to collusion with the external sensor circuitry.
+//    SPI1STAT = 0x8000;  // Enable SPI bus to talk radio
+    
     // Clear the transmit buffer
     MiApp_FlushTx();
 
@@ -399,6 +408,8 @@ static void scTransmit(BYTE * pbyTxBuffer, BYTE byLength)
 
     // Broadcast packet from transmit buffer
     MiApp_BroadcastPacket(FALSE);
+    
+//    SPI1STAT = 0x0000;  // Disable SPI bus to stop talking radio
 }
 
 
@@ -417,6 +428,7 @@ static void scTransmit(BYTE * pbyTxBuffer, BYTE byLength)
 @Revision History:
 DATE             NAME               REVISION COMMENT
 04/07/2017       Ali Haidous        Initial Revision
+04/22/2017       Ruisi Ge           Updated Revision
 
 *----------------------------------------------------------------------------*/
 static BOOL scfReceive(RECEIVED_MESSAGE * stReceiveMessageBuffer)
@@ -448,32 +460,51 @@ static BOOL scfReceive(RECEIVED_MESSAGE * stReceiveMessageBuffer)
 
 @Revision History:
 DATE             NAME               REVISION COMMENT
-04/12/2017       Ali Haidous        Initial Revision
+05/1/2017       Ruisi Ge        Initial Revision
 
 *----------------------------------------------------------------------------*/
 static unsigned int scADCRead(WORD wADCChannel)
 {
     WORD wI = 0;
     unsigned int LOCAL_ADCVal;
+    
+      SPI1STAT = 0x0000;  // Enable SPI bus to talk radio
 //    BYTE byADCVal = SAMPLE_ADC_VALUE;
-#if 0
+//#if 0
     AD1CHS = wADCChannel;           // set channel to measure 
     AD1CON1bits.ADON = 1;        // turn ADC on for taking readings
-    for (wI = 0; wI < 150; wI++);
+    for (wI = 0; wI < 350; wI++);
+//    DelayMs(1);
     AD1CON1bits.SAMP = 1;       // start sampling
     while (!AD1CON1bits.DONE);  // wait for ADC to complete
     LOCAL_ADCVal = ADC1BUF0;
     AD1CON1bits.ADON = 0;       // turn ADC off for before taking next reading
-#endif
+//#endif
 
     /* TODO: GET RID OF THIS, FOR SIMULATION PURPOSES ONLY */
-    (void)wADCChannel;
-//    while(!ADCFlag);          // this doesn't work need to come up with other wat 
-     LOCAL_ADCVal = SAMPLE_ADC_VALUE;
+//    (void)wADCChannel;
+////    while(!ADCFlag);          // this doesn't work need to come up with other wat 
+//     LOCAL_ADCVal = SAMPLE_ADC_VALUE;
 //    DelayMs(1);
-    for(wI = 0; wI < 150; wI++)                                     // delay around 100 us 
+////    for(wI = 0; wI < 150; wI++)  ;                                   // delay around 100 us 
    
 //      Delay10us(100);
+      SPI1STAT = 0x8000;  // Enable SPI bus to talk radio
+       MiApp_ProtocolInit(FALSE);
+    // Set default channel
+    MiApp_SetChannel(MYCHANNEL);
+
+    /*******************************************************************/
+    // Function MiApp_ConnectionMode defines the connection mode. The
+    // possible connection modes are:
+    //  ENABLE_ALL_CONN:    Enable all kinds of connection
+    //  ENABLE_PREV_CONN:   Only allow connection already exists in
+    //                      connection table
+    //  ENABL_ACTIVE_SCAN_RSP:  Allow response to Active scan
+    //  DISABLE_ALL_CONN:   Disable all connections.
+    /*******************************************************************/
+    MiApp_ConnectionMode(ENABLE_ALL_CONN);
+
     return LOCAL_ADCVal;
 }
 
@@ -501,7 +532,7 @@ static void scSpiltData(void)
     {
         for (bySpiltDataCount=0;bySpiltDataCount< MAX_DATA_SIZE;bySpiltDataCount++)
         {
-            scADCL[byPacketSequence][bySpiltDataCount] = scADCValue[byPacketSequence][bySpiltDataCount]; 
+            scADCL[byPacketSequence][bySpiltDataCount] = scADCValue[byPacketSequence][bySpiltDataCount]>>8; 
         }
     }
    scMaxThreshholdL = TEST_MAX;

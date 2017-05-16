@@ -96,12 +96,12 @@ section                    address   length (PC units)   length (bytes) (dec)
 -------                    -------   -----------------   --------------------
 .text                        0x200               0xbc8          0x11ac  (4524)
 .const                       0xdc8               0x18e           0x255  (597)
-.text                        0xf56              0x1014          0x181e  (6174)
-.dinit                      0x1f6a                0xe8           0x15c  (348)
-.text                       0x2052               0x1d0           0x2b8  (696)
-.shared.dinit               0x2222                 0x2             0x3  (3)
+.text                        0xf56              0x1016          0x1821  (6177)
+.dinit                      0x1f6c                0xe8           0x15c  (348)
+.text                       0x2054               0x1d0           0x2b8  (696)
+.shared.dinit               0x2224                 0x2             0x3  (3)
 
-                 Total program memory used (bytes):         0x3036  (12342) 76%
+                 Total program memory used (bytes):         0x3039  (12345) 76%
 
 
 Ivt Memory  [Origin = 0x4, Length = 0xfc]
@@ -261,42 +261,42 @@ External Symbols in Program Memory (by address):
                   0x001ae2                  _MiApp_EstablishConnection
                   0x001b80                  _MiApp_RemoveConnection
                   0x001c04                  _MiApp_ConnectionMode
-                  0x001e40                  _main
-                  0x002052                  _BoardInit
-                  0x002080                  _LCDTRXCount
-                  0x002082                  _LCDDisplay
-                  0x002084                  _ButtonPressed
-                  0x0020e6                  __CNInterrupt
-                  0x0020f8                  _Delay10us
-                  0x002142                  _DelayMs
-                  0x00217a                  _ConsoleInit
-                  0x00218c                  _ConsolePut
-                  0x00219a                  _ConsolePutROMString
-                  0x0021b2                  _ConsoleGet
-                  0x0021c0                  _PrintChar
-                  0x0021d8                  _PrintDec
-                  0x0021f6                  _SPIPut
-                  0x002208                  _SPIGet
-                  0x002210                  _InitSymbolTimer
-                  0x002218                  _TickGet
+                  0x001e42                  _main
+                  0x002054                  _BoardInit
+                  0x002082                  _LCDTRXCount
+                  0x002084                  _LCDDisplay
+                  0x002086                  _ButtonPressed
+                  0x0020e8                  __CNInterrupt
+                  0x0020fa                  _Delay10us
+                  0x002144                  _DelayMs
+                  0x00217c                  _ConsoleInit
+                  0x00218e                  _ConsolePut
+                  0x00219c                  _ConsolePutROMString
+                  0x0021b4                  _ConsoleGet
+                  0x0021c2                  _PrintChar
+                  0x0021da                  _PrintDec
+                  0x0021f8                  _SPIPut
+                  0x00220a                  _SPIGet
+                  0x002212                  _InitSymbolTimer
+                  0x00221a                  _TickGet
 
 External Symbols in Program Memory (by name):
 
                   0x00187a                  _AddConnection
-                  0x002052                  _BoardInit
-                  0x002084                  _ButtonPressed
+                  0x002054                  _BoardInit
+                  0x002086                  _ButtonPressed
                   0x000f46                  _CharacterArray
-                  0x0021b2                  _ConsoleGet
-                  0x00217a                  _ConsoleInit
-                  0x00218c                  _ConsolePut
-                  0x00219a                  _ConsolePutROMString
-                  0x0020f8                  _Delay10us
-                  0x002142                  _DelayMs
+                  0x0021b4                  _ConsoleGet
+                  0x00217c                  _ConsoleInit
+                  0x00218e                  _ConsolePut
+                  0x00219c                  _ConsolePutROMString
+                  0x0020fa                  _Delay10us
+                  0x002144                  _DelayMs
                   0x0017d2                  _DumpConnection
                   0x00126a                  _InitMRF24J40
-                  0x002210                  _InitSymbolTimer
-                  0x002082                  _LCDDisplay
-                  0x002080                  _LCDTRXCount
+                  0x002212                  _InitSymbolTimer
+                  0x002084                  _LCDDisplay
+                  0x002082                  _LCDTRXCount
                   0x001684                  _MacroNop
                   0x0016ec                  _MiApp_BroadcastPacket
                   0x001c04                  _MiApp_ConnectionMode
@@ -321,13 +321,13 @@ External Symbols in Program Memory (by name):
                   0x000fc8                  _PHYGetShortRAMAddr
                   0x000f56                  _PHYSetLongRAMAddr
                   0x000f96                  _PHYSetShortRAMAddr
-                  0x0021c0                  _PrintChar
-                  0x0021d8                  _PrintDec
-                  0x002208                  _SPIGet
-                  0x0021f6                  _SPIPut
+                  0x0021c2                  _PrintChar
+                  0x0021da                  _PrintDec
+                  0x00220a                  _SPIGet
+                  0x0021f8                  _SPIPut
                   0x001688                  _SendPacket
-                  0x002218                  _TickGet
-                  0x0020e6                  __CNInterrupt
+                  0x00221a                  _TickGet
+                  0x0020e8                  __CNInterrupt
                   0x0002a8                  __DefaultInterrupt
                   0x0015d2                  __INT1Interrupt
                   0x000c76                  ___divdi3
@@ -348,7 +348,7 @@ External Symbols in Program Memory (by name):
                   0x000308                  __sprintf_cdnopuxX
                   0x000346                  __vfprintf_cdnopuxX
                   0x001726                  _isSameAddress
-                  0x001e40                  _main
+                  0x001e42                  _main
 
 Memory Configuration
 
@@ -1209,7 +1209,7 @@ __c30_signature
  .const             0x8f46         0x10 build/default/production/_ext/1860783399/Console.o
                     0x8f46                  _CharacterArray
 
-.text             0x000f56       0x1014
+.text             0x000f56       0x1016
  .text            0x000f56        0x72e build/default/production/_ext/1061806389/MRF24J40.o
                   0x000f56                  _PHYSetLongRAMAddr
                   0x000f96                  _PHYSetShortRAMAddr
@@ -1242,35 +1242,35 @@ __c30_signature
                   0x001ae2                  _MiApp_EstablishConnection
                   0x001b80                  _MiApp_RemoveConnection
                   0x001c04                  _MiApp_ConnectionMode
- .text            0x001c1a        0x350 build/default/production/_ext/1472/AccessPoint.o
-                  0x001e40                  _main
+ .text            0x001c1a        0x352 build/default/production/_ext/1472/AccessPoint.o
+                  0x001e42                  _main
 
-.dinit            0x001f6a         0xe8
- .dinit           0x001f6a         0xe8 data_init
+.dinit            0x001f6c         0xe8
+ .dinit           0x001f6c         0xe8 data_init
 
-.text             0x002052        0x1d0
- .text            0x002052         0xa6 build/default/production/_ext/1472/HardwareProfile.o
-                  0x002052                  _BoardInit
-                  0x002080                  _LCDTRXCount
-                  0x002082                  _LCDDisplay
-                  0x002084                  _ButtonPressed
-                  0x0020e6                  __CNInterrupt
- .text            0x0020f8         0x82 build/default/production/_ext/1860783399/TimeDelay.o
-                  0x0020f8                  _Delay10us
-                  0x002142                  _DelayMs
- .text            0x00217a         0x7c build/default/production/_ext/1860783399/Console.o
-                  0x00217a                  _ConsoleInit
-                  0x00218c                  _ConsolePut
-                  0x00219a                  _ConsolePutROMString
-                  0x0021b2                  _ConsoleGet
-                  0x0021c0                  _PrintChar
-                  0x0021d8                  _PrintDec
- .text            0x0021f6         0x1a build/default/production/_ext/1860783399/MSPI.o
-                  0x0021f6                  _SPIPut
-                  0x002208                  _SPIGet
- .text            0x002210         0x12 build/default/production/_ext/1466186449/SymbolTime.o
-                  0x002210                  _InitSymbolTimer
-                  0x002218                  _TickGet
+.text             0x002054        0x1d0
+ .text            0x002054         0xa6 build/default/production/_ext/1472/HardwareProfile.o
+                  0x002054                  _BoardInit
+                  0x002082                  _LCDTRXCount
+                  0x002084                  _LCDDisplay
+                  0x002086                  _ButtonPressed
+                  0x0020e8                  __CNInterrupt
+ .text            0x0020fa         0x82 build/default/production/_ext/1860783399/TimeDelay.o
+                  0x0020fa                  _Delay10us
+                  0x002144                  _DelayMs
+ .text            0x00217c         0x7c build/default/production/_ext/1860783399/Console.o
+                  0x00217c                  _ConsoleInit
+                  0x00218e                  _ConsolePut
+                  0x00219c                  _ConsolePutROMString
+                  0x0021b4                  _ConsoleGet
+                  0x0021c2                  _PrintChar
+                  0x0021da                  _PrintDec
+ .text            0x0021f8         0x1a build/default/production/_ext/1860783399/MSPI.o
+                  0x0021f8                  _SPIPut
+                  0x00220a                  _SPIGet
+ .text            0x002212         0x12 build/default/production/_ext/1466186449/SymbolTime.o
+                  0x002212                  _InitSymbolTimer
+                  0x00221a                  _TickGet
 
-.shared.dinit     0x002222          0x2
- .shared.dinit    0x002222          0x2 shared_data_init
+.shared.dinit     0x002224          0x2
+ .shared.dinit    0x002224          0x2 shared_data_init
