@@ -94,7 +94,7 @@ typedef enum
 } SLAVE_RES_STATES_E;
 
 /* -- STATIC AND GLOBAL VARIABLES -- */
-static const BYTE kabySlaves[] = { SLAVE_0_ID, SLAVE_1_ID };
+static const BYTE kabySlaves[] = { SLAVE_0_ID };
 
 
 /* -- STATIC FUNCTION PROTOTYPES -- */
@@ -103,7 +103,7 @@ static void scTransmit(BYTE *pbyTxBuffer, BYTE byLength);
 static BOOL scfReceive(RECEIVED_MESSAGE *stReceiveMessageBuffer);
 static void scDoGlobalADCRequest(void);
 static void scReqSlaveStatus(const BYTE kbySlaveID);
-static void scPrintConsole(BYTE bySlaveID, BYTE byADCValue);
+static void scPrintConsole(BYTE bySlaveID, WORD byADCValue);
 
 
 /*----------------------------------------------------------------------------
@@ -237,7 +237,8 @@ int main(void)
 
                                 case SLAVE_ACKNOWLEDGE:
                                     ConsolePutROMString((ROM char *)"SLAVE_ACKNOWLEDGE\r\n");
-                                    scPrintConsole(bySlaveIndex, stReceivedMessage.Payload[ADC_VALUE_INDEX]);
+                                    WORD adcval = (stReceivedMessage.Payload[ADC_VALUE_INDEX]<<8) +stReceivedMessage.Payload[ADC_VALUE_INDEX+1];
+                                    scPrintConsole(bySlaveIndex, adcval);
                                     break;
 
                                 default:
@@ -407,17 +408,18 @@ DATE             NAME               REVISION COMMENT
 04/07/2017       Ali Haidous        Initial Revision
 
 *----------------------------------------------------------------------------*/
-static void scPrintConsole(BYTE bySlaveID, BYTE byADCValue)
+static void scPrintConsole(BYTE bySlaveID, WORD byADCValue)
 {
-    
+    char str[100];
     ConsolePutROMString((ROM char*)"Node   ");
     
     ConsolePut(bySlaveID % 10 + '0');
     
     ConsolePutROMString((ROM char*)" | ");
     ConsolePutROMString((ROM char*)"Value   ");
-    
-    ConsolePut(byADCValue % 10 + '0');
+    sprintf(str, "%d", byADCValue);
+   ConsolePutROMString((ROM char*)str); 
+
     
     ConsolePutROMString((ROM char*)" | \r\n");
 }

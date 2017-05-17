@@ -70,7 +70,7 @@ enum
     GLOBAL_ID = 0xFF
 };
 //TODO: EDIT THIS FOR UNIQUE SLAVE DEVICE
-#define UNIQUE_SLAVE SLAVE_1_ID
+#define UNIQUE_SLAVE SLAVE_0_ID
 
 
 typedef enum
@@ -108,8 +108,8 @@ typedef enum
 static void scMainInit(void);
 static void scTransmit(BYTE *pbyTxBuffer, BYTE byLength);
 static BOOL scfReceive(RECEIVED_MESSAGE *stReceiveMessageBuffer);
-static BYTE scbyADCRead(WORD wChannel);
-static BYTE scbyADCValue;
+static WORD scbyADCRead(WORD wChannel);
+static WORD scbyADCValue;
 static BYTE scabyResponseBuffer[MAX_PACKET_SIZE];
 
 /* This value indicates that the last command
@@ -137,13 +137,6 @@ static void scMainInit(void)
 
     BoardInit();
     
-    /*******************************************************************/
-    // Function MiApp_ProtocolInit initialize the protocol stack. The
-    // only input parameter indicates if previous network configuration
-    // should be restored. In this simple example, we assume that the
-    // network starts from scratch.
-    /*******************************************************************/
-        
     SPI1STAT = 0x8000;  // Enable SPI bus to talk radio
     MiApp_ProtocolInit(FALSE);
     // Set default channel
@@ -159,7 +152,14 @@ static void scMainInit(void)
     //  DISABLE_ALL_CONN:   Disable all connections.
     /*******************************************************************/
     MiApp_ConnectionMode(ENABLE_ALL_CONN);
-
+    /*******************************************************************/
+    // Function MiApp_ProtocolInit initialize the protocol stack. The
+    // only input parameter indicates if previous network configuration
+    // should be restored. In this simple example, we assume that the
+    // network starts from scratch.
+    /*******************************************************************/
+        
+    
     /* Initialize static variables */
     scbyADCValue = 0;
     scfSlaveStatus = SLAVE_NO_ACKNOWLEDGE;
@@ -212,7 +212,7 @@ int main(void)
                 break;
 
             case ADC_CALC:
-                scbyADCValue = scbyADCRead(0);
+                scbyADCValue = scbyADCRead(2);
                 scfSlaveStatus = SLAVE_ACKNOWLEDGE;
                 eSlaveStates = INACTIVE;
                 break;
@@ -220,8 +220,9 @@ int main(void)
             case SLAVE_RES: //TODO: more work needed to make generic
                 scabyResponseBuffer[SLAVE_ID_INDEX] = UNIQUE_SLAVE;
                 scabyResponseBuffer[COMMAND_INDEX] = (BYTE)scfSlaveStatus;
-                scabyResponseBuffer[ADC_VALUE_INDEX] = scbyADCValue;
-                scTransmit((BYTE *)&scabyResponseBuffer, 3);
+                scabyResponseBuffer[ADC_VALUE_INDEX] = (scbyADCValue >> 8) & 0xFF;
+                scabyResponseBuffer[ADC_VALUE_INDEX+1] = (scbyADCValue) & 0xFF;
+                scTransmit((BYTE *)&scabyResponseBuffer, 4);
                 eSlaveStates = INACTIVE;
                 break;
 
@@ -294,7 +295,6 @@ DATE             NAME               REVISION COMMENT
 static void scTransmit(BYTE * pbyTxBuffer, BYTE byLength)
 {
     BYTE byI;
-
     // Clear the transmit buffer
     MiApp_FlushTx();
 
@@ -306,6 +306,8 @@ static void scTransmit(BYTE * pbyTxBuffer, BYTE byLength)
 
     // Broadcast packet from transmit buffer
     MiApp_BroadcastPacket(FALSE);
+//    DelayMs(5);
+
 }
 
 
@@ -328,6 +330,8 @@ DATE             NAME               REVISION COMMENT
 *----------------------------------------------------------------------------*/
 static BOOL scfReceive(RECEIVED_MESSAGE * stReceiveMessageBuffer)
 {
+    BYTE byI;
+     
     BOOL fRetVal = FALSE;
 
     if (MiApp_MessageAvailable())
@@ -337,7 +341,6 @@ static BOOL scfReceive(RECEIVED_MESSAGE * stReceiveMessageBuffer)
 
         fRetVal = TRUE;
     }
-
     return fRetVal;
 }
 
@@ -358,25 +361,27 @@ DATE             NAME               REVISION COMMENT
 04/12/2017       Ali Haidous        Initial Revision
 
 *----------------------------------------------------------------------------*/
-static BYTE scbyADCRead(WORD wADCChannel)
+static WORD scbyADCRead(WORD wADCChannel)
 {
-    WORD wI = 0;
-    BYTE byADCVal = SAMPLE_ADC_VALUE;
+    SPI1STAT = 0x0000;  // Enable SPI bus to talk radio
 
-#if 0
+
+    WORD wI = 0;
+    WORD byADCVal = SAMPLE_ADC_VALUE;
     AD1CHS = wADCChannel;           // set channel to measure 
     AD1CON1bits.ADON = 1;        // turn ADC on for taking readings
-    for (wI = 0; wI < 50; wI++);
+    for (wI = 0; wI < 150; wI++);
     AD1CON1bits.SAMP = 1;       // start sampling
     while (!AD1CON1bits.DONE);  // wait for ADC to complete
     byADCVal = ADC1BUF0;
     AD1CON1bits.ADON = 0;       // turn ADC off for before taking next reading
-#endif
-
     /* TODO: GET RID OF THIS, FOR SIMULATION PURPOSES ONLY */
     (void)wADCChannel;
     DelayMs(100);
-
+     SPI1STAT = 0x8000;  // Enable SPI bus to talk radio
+    MiApp_ProtocolInit(FALSE);
+    // Set default channel
+    MiApp_SetChannel(MYCHANNEL);
 
     return byADCVal;
 }
