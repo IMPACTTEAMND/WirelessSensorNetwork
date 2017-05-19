@@ -58,8 +58,9 @@
 #define SAMPLE_ADC_VALUE 8
 #define MAX_PACKET_SIZE 20
 #define UNDEFINED 0
-#define FIVE_SECONDS 50000
-#define THIRTY_SECONDS 300000
+#define HUNDRED_US_TO_ONE_SEC 10000
+#define HUNDRED_US_TO_FIVE_SEC 50000
+#define HUNDRED_US_TO_THIRTY_SEC 300000
 
 /* Uncomment for debugging */
 //#define DEBUG
@@ -119,8 +120,8 @@ typedef enum
    received from master was processed successfully */
 static BOOL scfSlaveStatus;
 static BYTE scabyResponseBuffer[MAX_PACKET_SIZE];
-static DWORD scdwHundredMicroSecondsADC;
-static DWORD scdwHundredMicroSecondsCalibration;
+DWORD gdwHundredMicroSecondsADC;
+DWORD gdwHundredMicroSecondsCalibration;
 static WORD scawCalibrationRunningAvgValues[10];
 // We will not overflow since we will have only 10
 static WORD scwCalibrationMaxThreshold;
@@ -183,8 +184,8 @@ static void scMainInit(void)
     
     /* Initialize static variables */
     scfSlaveStatus = SLAVE_NO_ACKNOWLEDGE;
-    scdwHundredMicroSecondsADC = UNDEFINED;
-    scdwHundredMicroSecondsCalibration = UNDEFINED;
+    gdwHundredMicroSecondsADC = UNDEFINED;
+    gdwHundredMicroSecondsCalibration = UNDEFINED;
     scwCalibrationMaxThreshold = UNDEFINED;
     scwCalibrationRunningAvg = UNDEFINED;
     
@@ -227,7 +228,11 @@ int main(void)
         switch(eSlaveStates)
         {
             case INACTIVE:
-                if (scfReceive((RECEIVED_MESSAGE *)&stReceivedMessage))
+                if (fCalibrating)
+                {
+                    eSlaveStates = SENSOR_CALIBRATION;
+                }
+                else if (scfReceive((RECEIVED_MESSAGE *)&stReceivedMessage))
                 {
                     if ((stReceivedMessage.Payload[SLAVE_ID_INDEX] == GLOBAL_ID) ||
                         (stReceivedMessage.Payload[SLAVE_ID_INDEX] == UNIQUE_SLAVE))
@@ -239,10 +244,6 @@ int main(void)
                         stReceivedMessage = (RECEIVED_MESSAGE) {0};
                     }
                 }
-                else if (fCalibrating)
-                {
-                    eSlaveStates = SENSOR_CALIBRATION;
-                }
                 break;
 
             case SENSOR_CALIBRATION:
@@ -250,13 +251,13 @@ int main(void)
                 {
                     case CALIBRATION_INIT:
                         // Reset calibration timer
-                        scdwHundredMicroSecondsCalibration = 0;
+                        gdwHundredMicroSecondsCalibration = 0;
                         eCalibrationStates = CALIBRATE;
                         break;
                         
                     case CALIBRATE:
                         // Calibrate for 5 seconds
-                        if (scdwHundredMicroSecondsCalibration < FIVE_SECONDS)
+                        if (gdwHundredMicroSecondsCalibration < HUNDRED_US_TO_FIVE_SEC)
                         {
                             scCalibrateSensor(EXTERNAL_SENSOR_CHANNEL);
                         }
@@ -338,9 +339,9 @@ static BOOL scfDoReadADC(WORD wSensorChannel)
     WORD wPacketIndex = ADC_VALUE_INDEX;
     
     // Reset ADC Timer
-    scdwHundredMicroSecondsADC = 0; 
+    gdwHundredMicroSecondsADC = 0; 
     
-    while (scdwHundredMicroSecondsADC < THIRTY_SECONDS)
+    while (gdwHundredMicroSecondsADC < HUNDRED_US_TO_THIRTY_SEC)
     {
         wADCValue = scwADCRead(wSensorChannel);
         
@@ -356,7 +357,7 @@ static BOOL scfDoReadADC(WORD wSensorChannel)
         }
     }
     
-    fRetVal = (scdwHundredMicroSecondsADC < THIRTY_SECONDS);
+    fRetVal = (gdwHundredMicroSecondsADC < HUNDRED_US_TO_THIRTY_SEC);
     
     return fRetVal;
 }
@@ -591,7 +592,7 @@ static void scTimerInterruptInit (void)
 {   
     T1CON = 0x0000; 		// stops the timer1 and reset control flag
     TMR1 = 0xFFCD;                          //0XFFFF - 0x0050=50 pulses = 	100 usec count at Fosc = 8MHZ with Timer prescalar of 1:8
-  	IPC0bits.T1IP =0x3; 	// setup Timer1 interrupt for desired priority level
+  	IPC0bits.T1IP =0x7; 	// setup Timer1 interrupt for desired priority level
 	IEC0bits.T1IE = 1; 		// enable Timer1 interrupts	
 	T1CON = 0x8010;		 	// enable timer1 with prescalar of 1:8 
 }
@@ -615,8 +616,8 @@ static void scTimerInterruptInit (void)
 **********************************************************************/
 void _ISRFAST __attribute__((interrupt, auto_psv)) _T1Interrupt(void) 
 {
-    scdwHundredMicroSecondsADC++;
-    scdwHundredMicroSecondsCalibration++;
+    gdwHundredMicroSecondsADC++;
+    gdwHundredMicroSecondsCalibration++;
    	IFS0bits.T1IF = 0;						// Clear Timer 1 interrupt flag
 	TMR1 = 0xFFCD;                          //0XFFFF - 0x0050=50 pulses = 	100 usec count at Fosc = 8MHZ with Timer prescalar of 1:8; 
 	return;

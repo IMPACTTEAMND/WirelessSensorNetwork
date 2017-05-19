@@ -385,22 +385,23 @@ DATE             NAME               REVISION COMMENT
 *----------------------------------------------------------------------------*/
 static BOOL scfReceive(RECEIVED_MESSAGE * stReceiveMessageBuffer)
 {
+    BOOL fRetVal = FALSE;
     BYTE byTimeout = 0xFF;
 
-    // Timeout after 255ms
     while (byTimeout > 0)
     {
         byTimeout--;
         if (MiApp_MessageAvailable())
         {
-            * stReceiveMessageBuffer = rxMessage;
+            *stReceiveMessageBuffer = rxMessage;
             MiApp_DiscardMessage();
+            fRetVal = TRUE;
             break;
         }
         DelayMs(RX_TIME);
     }
 
-    return (byTimeout > 0);
+    return fRetVal;
 }
 
 
