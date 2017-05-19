@@ -8,8 +8,6 @@
 * Complier:     Microchip C18 v3.04 or higher (untested)
 *               Microchip C32 v1.02 or higher
 *
-
-
 *********************************************************************
 * File Description:
 *
@@ -41,26 +39,26 @@
 #include "ConfigApp.h"
 #include "HardwareProfile.h"
 #include "WirelessProtocols\MCHP_API.h"
+#include <stdint.h>
 #include <math.h>
 
 /* -- DEFINES and ENUMS -- */
-#define VBG_VAL         1228800UL   // VBG = 1.2V, VBG_VAL = 1200 mV * 1024 counts
-#define T_BIAS          10000.0     // Bias res for temp sensor
-#define B_CONST         3380.0      // B Constant of thermistor
-#define R_0             10000.0     // Thermistor resistance at 25C
-#define T_0             298.15      // Temp in kelvin at 25C
-#define MYCHANNEL 25
-#define CODE_VERSION 12
-
-#define RX_TIME 1
-#define SAMPLE_ADC_VALUE 8
-#define MAX_PACKET_SIZE 50
-#define UNDEFINED 0
+#define MYCHANNEL           25
+#define EXT_CHANNEL         2  
+#define SAMPLE_ADC_VALUE    5
+#define CALIBRATE_DATA_SIZE 10
+#define SELF_CALIBRATE_MAX_TIME_MS    300
+#define MAX_PACKET_SIZE     60
+#define MAX_DATA_SIZE       20          
+#define TEST_MAX            2          // test value, need to delete it later
+#define MAX_PACKET_SEQUENCE 5 
+#define UNDEFINED           0
+#define HEADERCOOMANDSIZE   3         // header include 1 BYTE DEVICE ID,1 BYTE COMMAND, 1 BYTE SEQUENCE, 4 BYTE TIME  
+#define TIMEHEADERSIZE      4         // Timer header include 4 byte timer header size
+#define THRESHHOLDVALUEHEADER 1       // Threshhold value size 1
 
 /* Uncomment for debugging */
 //#define DEBUG
-
-
 enum
 {
     SLAVE_0_ID,
@@ -72,27 +70,25 @@ enum
 //TODO: EDIT THIS FOR UNIQUE SLAVE DEVICE
 #define UNIQUE_SLAVE SLAVE_0_ID
 
-
-typedef enum
-{
-    CALC_ADC_CMD,
-    REQ_STATUS_CMD
-} COMMANDS_E;
-
-
 enum
 {
     SLAVE_ID_INDEX,
     COMMAND_INDEX,
-    ADC_VALUE_INDEX
+    SEQUENCE_INDEX,
+    TIME_1_BYTE,
+    TIME_2_BYTE,
+    TIME_3_BYTE,
+    TIME_4_BYTE,
+    MAX_VALUE_LOW_BYTE
 };
 
 /* -- TYPEDEFS and STRUCTURES -- */
 typedef enum
 {
     INACTIVE,
+    SELF_CALIBRATE,
     ADC_CALC,
-    SLAVE_RES
+    SLAVE_RES,
 } SLAVE_STATES_E;
 
 typedef enum
@@ -101,16 +97,45 @@ typedef enum
     SLAVE_ACKNOWLEDGE
 } SLAVE_RES_STATES_E;
 
+typedef enum
+{
+    TIMER_INITIATE,
+    ADC_INITIATE,
+    ADC_MEASURING,
+}ADC_STATES_E;
+
+typedef enum
+{
+    CALC_ADC_CMD,
+    REQ_STATUS_CMD,
+    REQ_MISS_MESSAGE_CMD
+} COMMANDS_E;
+
 /* -- STATIC AND GLOBAL VARIABLES -- */
-
-
+static unsigned int  scMaxThreshhold=0;
+static unsigned int  scMaxThreshholdQue[CALIBRATE_DATA_SIZE]= {0};
+static BOOL ADCFlag;
+static uint32_t scHundredMicroseconds;
+static unsigned char scHundredMicroseconds1stByte;          // First Byte for Milliseconds 
+static unsigned char scHundredMicroseconds2ndByte;         // Second Byte for Milliseconds
+static unsigned char scHundredMicroseconds3rdByte;        // Third Byte for Milliseconds
+static unsigned char scHundredMicroseconds4thByte; 
+static unsigned char scMaxThreshholdL;                  // Low BYTE value for MaxThreshhold
+static unsigned int  scADCValue[MAX_PACKET_SEQUENCE][MAX_DATA_SIZE]; 
+static unsigned char scabyResponseBuffer[MAX_PACKET_SIZE];
+static unsigned char scADCH[MAX_PACKET_SEQUENCE][MAX_DATA_SIZE];
+static unsigned char scADCL[MAX_PACKET_SEQUENCE][MAX_DATA_SIZE];
+static uint32_t scADCStartTime;
 /* -- STATIC FUNCTION PROTOTYPES -- */
 static void scMainInit(void);
+static unsigned int FindMax(void);
 static void scTransmit(BYTE *pbyTxBuffer, BYTE byLength);
 static BOOL scfReceive(RECEIVED_MESSAGE *stReceiveMessageBuffer);
-static WORD scbyADCRead(WORD wChannel);
-static WORD scbyADCValue;
-static BYTE scabyResponseBuffer[MAX_PACKET_SIZE];
+static unsigned int  scADCRead(WORD wChannel);
+static void scSpiltData(void);
+static void scAllocateRespondBuffer(BYTE PacketSequence);
+static void TimerInitiate (void);
+void _ISR _DefaultInterrupt(void);	// interrupt for Timer1, used for keeping time
 
 /* This value indicates that the last command
    received from master was processed successfully */
@@ -119,17 +144,12 @@ static SLAVE_STATES_E sceConvertCommandToState(const COMMANDS_E keCommand);
 
 
 /*----------------------------------------------------------------------------
-
 @Description: The  Application main entry point initialization
-
 @Parameters: void
-
 @Returns: void
-
 @Revision History:
 DATE             NAME               REVISION COMMENT
 04/07/2017       Ali Haidous        Initial Revision
-
 *----------------------------------------------------------------------------*/
 static void scMainInit(void)
 {
@@ -137,6 +157,13 @@ static void scMainInit(void)
 
     BoardInit();
     
+    /*******************************************************************/
+    // Function MiApp_ProtocolInit initialize the protocol stack. The
+    // only input parameter indicates if previous network configuration
+    // should be restored. In this simple example, we assume that the
+    // network starts from scratch.
+    /*******************************************************************/
+        
     SPI1STAT = 0x8000;  // Enable SPI bus to talk radio
     MiApp_ProtocolInit(FALSE);
     // Set default channel
@@ -152,16 +179,9 @@ static void scMainInit(void)
     //  DISABLE_ALL_CONN:   Disable all connections.
     /*******************************************************************/
     MiApp_ConnectionMode(ENABLE_ALL_CONN);
-    /*******************************************************************/
-    // Function MiApp_ProtocolInit initialize the protocol stack. The
-    // only input parameter indicates if previous network configuration
-    // should be restored. In this simple example, we assume that the
-    // network starts from scratch.
-    /*******************************************************************/
-        
-    
+
     /* Initialize static variables */
-    scbyADCValue = 0;
+    scADCValue[MAX_PACKET_SEQUENCE][MAX_DATA_SIZE] = 0 ;
     scfSlaveStatus = SLAVE_NO_ACKNOWLEDGE;
 
     for (byI = 0; byI < sizeof(scabyResponseBuffer); byI++)
@@ -172,30 +192,28 @@ static void scMainInit(void)
 
 
 /*----------------------------------------------------------------------------
-
 @Description: The  Application main entry point
-
 @Parameters: void
-
 @Returns: void
-
 @Revision History:
 DATE             NAME               REVISION COMMENT
 04/12/2017       Ali Haidous        Initial Revision
-
 *----------------------------------------------------------------------------*/
 int main(void)
 {
     RECEIVED_MESSAGE stReceivedMessage = (RECEIVED_MESSAGE) {0};
     SLAVE_STATES_E eSlaveStates = INACTIVE;
-
+    ADC_STATES_E eADCStates = TIMER_INITIATE;
+    BYTE byDataCount ;
+    BYTE byPacketSequence ;
+    BYTE byCalibrateDataCount=0;
     scMainInit();
-
+    
     while(TRUE)
     {
         switch(eSlaveStates)
         {
-            case INACTIVE:
+            case INACTIVE:        
                 if (scfReceive((RECEIVED_MESSAGE *)&stReceivedMessage))
                 {
                     if ((stReceivedMessage.Payload[SLAVE_ID_INDEX] == GLOBAL_ID) ||
@@ -208,54 +226,113 @@ int main(void)
                         stReceivedMessage = (RECEIVED_MESSAGE) {0};
                     }
                 }
-
+//                else
+//                {
+//                    eSlaveStates = SELF_CALIBRATE;
+//                    break;
+//                }
                 break;
+                
+//            case SELF_CALIBRATE:
+//                SPI1STAT = 0x0000;
+//                scMaxThreshholdQue[byCalibrateDataCount]=scADCRead(EXT_CHANNEL);
+//                scMaxThreshhold=FindMax(); 
+//                byCalibrateDataCount=byCalibrateDataCount+1;
+//                if (byCalibrateDataCount==CALIBRATE_DATA_SIZE)
+//                {
+//                    byCalibrateDataCount=0;
+//                }
+//                eSlaveStates = INACTIVE;      
+//                break;
 
             case ADC_CALC:
-                scbyADCValue = scbyADCRead(2);
-                scfSlaveStatus = SLAVE_ACKNOWLEDGE;
-                eSlaveStates = INACTIVE;
+                switch(eADCStates)
+                {
+                    case TIMER_INITIATE:
+                        TimerInitiate();
+                        eADCStates = ADC_INITIATE;
+                        break;
+                    case ADC_INITIATE:
+                        scADCValue[0][0]=scADCRead(EXT_CHANNEL);           
+                        scADCStartTime = scHundredMicroseconds;            // ADC Start recording time 
+                        if(scADCValue[0][0]>TEST_MAX)               // For test purpose only, the real variable is scMaxThreshhold
+                            {
+                               eADCStates = ADC_MEASURING;
+                            }
+//                        else if(scHundredMicroseconds>600000)             // when the time is bigger than 60 seconds
+//                            {
+//                                eSlaveStates = INACTIVE;                // Time out if wait longer than 60 seconds
+//                            }
+                        break;
+                    case ADC_MEASURING:
+                        for(byPacketSequence = 0;byPacketSequence<MAX_PACKET_SEQUENCE;byPacketSequence++)
+                        {
+                            for(byDataCount =0;byDataCount<MAX_DATA_SIZE;byDataCount++)
+                            {
+                                scADCValue[byPacketSequence][byDataCount] = scADCRead(EXT_CHANNEL);
+                            }
+                        }                        
+                        scSpiltData();    
+                        scfSlaveStatus = SLAVE_ACKNOWLEDGE;
+                        eSlaveStates = INACTIVE;             
+                        break;
+                }        
                 break;
-
             case SLAVE_RES: //TODO: more work needed to make generic
-                scabyResponseBuffer[SLAVE_ID_INDEX] = UNIQUE_SLAVE;
-                scabyResponseBuffer[COMMAND_INDEX] = (BYTE)scfSlaveStatus;
-                scabyResponseBuffer[ADC_VALUE_INDEX] = (scbyADCValue >> 8) & 0xFF;
-                scabyResponseBuffer[ADC_VALUE_INDEX+1] = (scbyADCValue) & 0xFF;
-                scTransmit((BYTE *)&scabyResponseBuffer, 4);
+                scAllocateRespondBuffer(stReceivedMessage.Payload[SEQUENCE_INDEX]);
+                scTransmit((BYTE *)&scabyResponseBuffer, 2*MAX_DATA_SIZE+HEADERCOOMANDSIZE+TIMEHEADERSIZE+THRESHHOLDVALUEHEADER);    // how big the transmit buffer is 
                 eSlaveStates = INACTIVE;
                 break;
-
+                
             default:
                 // Error case
                 eSlaveStates = INACTIVE;
                 break;
         }
     }
-
     return 0;
 }
 
+/*----------------------------------------------------------------------------
+ 
+@Prototype: static unsigned int FindMax(void)
+ 
+@Description: find the max value of threshold value
+@Parameters: void 
+@Returns: Max Threshold Value 
+@Revision History:
+DATE             NAME               REVISION COMMENT
+05/01/2017       Ruisi Ge        Initial Revision
+*----------------------------------------------------------------------------*/
+static unsigned int FindMax(void)
+{
+    unsigned int MaxValue;
+    unsigned int QueIndex;
+    MaxValue = scMaxThreshholdQue[0];
+    for (QueIndex =1;QueIndex<CALIBRATE_DATA_SIZE;QueIndex++)
+    {
+        if (MaxValue<scMaxThreshholdQue[QueIndex])
+        {
+            MaxValue = scMaxThreshholdQue[QueIndex];
+        }
+    }
+    return MaxValue;
+}
 
 /*----------------------------------------------------------------------------
  
 @Prototype: static SLAVE_STATES_E eConvertCommandToState(const BYTE kbyCommand)
  
 @Description: Convert a received command from master to a slave state
-
 @Parameters: const COMMANDS_E keCommand - The command from master
-
 @Returns: void
-
 @Revision History:
 DATE             NAME               REVISION COMMENT
 04/13/2017       Ali Haidous        Initial Revision
-
 *----------------------------------------------------------------------------*/
 static SLAVE_STATES_E sceConvertCommandToState(const COMMANDS_E keCommand)
 {
     SLAVE_STATES_E eSlaveState = INACTIVE;
-
     switch (keCommand)
     {
         case CALC_ADC_CMD:
@@ -265,36 +342,31 @@ static SLAVE_STATES_E sceConvertCommandToState(const COMMANDS_E keCommand)
         case REQ_STATUS_CMD:
             eSlaveState = SLAVE_RES;
             break;
-
+                        
         default:
             // Error case
             eSlaveState = INACTIVE;
             break;
     }
-
     return eSlaveState;
 }
-
 
 /*----------------------------------------------------------------------------
  
 @Prototype: static void scTransmit(BYTE * pbyTxBuffer, BYTE byLength)
  
 @Description: Request ADC from all slaves
-
 @Parameters: BYTE * pbyTxBuffer - Pointer to the buffer of bytes to transmit 
              BYTE byLength - The length of bytes
-
 @Returns: void
-
 @Revision History:
 DATE             NAME               REVISION COMMENT
 04/07/2017       Ali Haidous        Initial Revision
-
 *----------------------------------------------------------------------------*/
 static void scTransmit(BYTE * pbyTxBuffer, BYTE byLength)
 {
     BYTE byI;
+
     // Clear the transmit buffer
     MiApp_FlushTx();
 
@@ -306,8 +378,6 @@ static void scTransmit(BYTE * pbyTxBuffer, BYTE byLength)
 
     // Broadcast packet from transmit buffer
     MiApp_BroadcastPacket(FALSE);
-//    DelayMs(5);
-
 }
 
 
@@ -316,22 +386,17 @@ static void scTransmit(BYTE * pbyTxBuffer, BYTE byLength)
 @Prototype: static BOOL scfReceive(void)
  
 @Description: Wait until we receive a packet
-
 @Parameters: RECEIVED_MESSAGE * stReceiveMessageBuffer - Out parameter for the 
              received message. 
  
 @Returns: TRUE: If we received a packet, FALSE otherwise
            
-
 @Revision History:
 DATE             NAME               REVISION COMMENT
 04/07/2017       Ali Haidous        Initial Revision
-
 *----------------------------------------------------------------------------*/
 static BOOL scfReceive(RECEIVED_MESSAGE * stReceiveMessageBuffer)
 {
-    BYTE byI;
-     
     BOOL fRetVal = FALSE;
 
     if (MiApp_MessageAvailable())
@@ -341,48 +406,173 @@ static BOOL scfReceive(RECEIVED_MESSAGE * stReceiveMessageBuffer)
 
         fRetVal = TRUE;
     }
+
     return fRetVal;
 }
 
 
 /*----------------------------------------------------------------------------
  
-@Prototype: static BYTE scbyADCRead(WORD wChannel)
+@Prototype: static int scu32ADCRead(WORD wADCChannel)
  
 @Description: Read an ADC value from a given ADC channel
-
 @Parameters: WORD wADCChannel - ADC Channel 
  
-@Returns: BYTE: The ADC value
+@Returns: int: The ADC value - the microcontroller has 10 bit adc, hence byte is not correct type 
            
-
 @Revision History:
 DATE             NAME               REVISION COMMENT
 04/12/2017       Ali Haidous        Initial Revision
-
 *----------------------------------------------------------------------------*/
-static WORD scbyADCRead(WORD wADCChannel)
+static unsigned int scADCRead(WORD wADCChannel)
 {
-    SPI1STAT = 0x0000;  // Enable SPI bus to talk radio
-
-
+    SPI1STAT = 0x0000;
     WORD wI = 0;
-    WORD byADCVal = SAMPLE_ADC_VALUE;
+    unsigned int LOCAL_ADCVal;
+//    BYTE byADCVal = SAMPLE_ADC_VALUE;
+//#if 0
     AD1CHS = wADCChannel;           // set channel to measure 
     AD1CON1bits.ADON = 1;        // turn ADC on for taking readings
-    for (wI = 0; wI < 150; wI++);
+    for (wI = 0; wI < 100; wI++);
     AD1CON1bits.SAMP = 1;       // start sampling
     while (!AD1CON1bits.DONE);  // wait for ADC to complete
-    byADCVal = ADC1BUF0;
+    LOCAL_ADCVal = ADC1BUF0;
     AD1CON1bits.ADON = 0;       // turn ADC off for before taking next reading
-    /* TODO: GET RID OF THIS, FOR SIMULATION PURPOSES ONLY */
-    (void)wADCChannel;
-    DelayMs(100);
-     SPI1STAT = 0x8000;  // Enable SPI bus to talk radio
-    MiApp_ProtocolInit(FALSE);
-    // Set default channel
-    MiApp_SetChannel(MYCHANNEL);
+    SPI1STAT = 0x8000;  // Enable SPI bus to talk radio
+//    MiApp_ProtocolInit(FALSE);
+////     Set default channel
+//    MiApp_SetChannel(MYCHANNEL);
 
-    return byADCVal;
+    /*******************************************************************/
+    // Function MiApp_ConnectionMode defines the connection mode. The
+    // possible connection modes are:
+    //  ENABLE_ALL_CONN:    Enable all kinds of connection
+    //  ENABLE_PREV_CONN:   Only allow connection already exists in
+    //                      connection table
+    //  ENABL_ACTIVE_SCAN_RSP:  Allow response to Active scan
+    //  DISABLE_ALL_CONN:   Disable all connections.
+    /*******************************************************************/
+//    MiApp_ConnectionMode(ENABLE_ALL_CONN);
+//#endif
+
+//    /* TODO: GET RID OF THIS, FOR SIMULATION PURPOSES ONLY */
+//    (void)wADCChannel;
+////    while(!ADCFlag);          // this doesn't work need to come up with other wat 
+//     SPI1STAT = 0x8000;  // Enable SPI bus to talk radio
+//     LOCAL_ADCVal = SAMPLE_ADC_VALUE;
+//    DelayMs(1);
+//    for(wI = 0; wI < 150; wI++)                                     // delay around 100 us 
+    return LOCAL_ADCVal;
 }
 
+/*----------------------------------------------------------------------------
+ 
+@Prototype: static void scSpiltData(void)
+ 
+@Description: Spilt the ADC and time data to bytes
+@Parameters: None 
+ 
+@Returns: None
+           
+@Revision History:
+DATE             NAME               REVISION COMMENT
+04/18/2017       Ruisi Ge           Initial Revision
+*----------------------------------------------------------------------------*/
+static void scSpiltData(void)
+{
+    BYTE bySpiltDataCount;
+    BYTE byPacketSequence;
+    scMaxThreshholdL = TEST_MAX;
+    scHundredMicroseconds1stByte=scADCStartTime>>24;
+    scHundredMicroseconds2ndByte=scADCStartTime>>16;
+    scHundredMicroseconds3rdByte=scADCStartTime>>8;
+    scHundredMicroseconds4thByte=scADCStartTime;
+    for (byPacketSequence=0;byPacketSequence< MAX_PACKET_SEQUENCE;byPacketSequence++)
+    {
+        for (bySpiltDataCount=0;bySpiltDataCount< MAX_DATA_SIZE;bySpiltDataCount++)
+        {
+            scADCH[byPacketSequence][bySpiltDataCount] = scADCValue[byPacketSequence][bySpiltDataCount] >> 8;
+            scADCL[byPacketSequence][bySpiltDataCount] = scADCValue[byPacketSequence][bySpiltDataCount]; 
+        }
+    }
+   
+}
+
+
+/*----------------------------------------------------------------------------
+ 
+@Prototype: static void scAllocateRespondBuffer(void)
+ 
+@Description: allocate the ADC data to RespondBuffer
+@Parameters: BYTE, Packet Number 
+ 
+@Returns: None
+           
+@Revision History:
+DATE             NAME               REVISION COMMENT
+04/18/2017       Ruisi Ge           Initial Revision
+*----------------------------------------------------------------------------*/
+static void scAllocateRespondBuffer(BYTE PacketSequence)
+{
+    int DataCount;
+    scabyResponseBuffer[SLAVE_ID_INDEX] = UNIQUE_SLAVE;
+    scabyResponseBuffer[COMMAND_INDEX] = (BYTE)scfSlaveStatus;
+    scabyResponseBuffer[SEQUENCE_INDEX] = PacketSequence;
+    scabyResponseBuffer[TIME_1_BYTE] = scHundredMicroseconds1stByte;
+    scabyResponseBuffer[TIME_2_BYTE] = scHundredMicroseconds2ndByte;
+    scabyResponseBuffer[TIME_3_BYTE] = scHundredMicroseconds3rdByte;
+    scabyResponseBuffer[TIME_4_BYTE] = scHundredMicroseconds4thByte;
+    scabyResponseBuffer[MAX_VALUE_LOW_BYTE] = scMaxThreshholdL;
+    for (DataCount=0;DataCount< MAX_DATA_SIZE;DataCount++)
+        {
+            scabyResponseBuffer[2*DataCount+HEADERCOOMANDSIZE+TIMEHEADERSIZE+THRESHHOLDVALUEHEADER] = scADCH[PacketSequence][DataCount];
+            scabyResponseBuffer[2*DataCount+HEADERCOOMANDSIZE+TIMEHEADERSIZE+THRESHHOLDVALUEHEADER+1] = scADCL[PacketSequence][DataCount];
+        } 
+}
+
+/*----------------------------------------------------------------------------
+ 
+@Prototype: static void TimerInitiate (void)
+ 
+@Description: initiate the timer 
+@Parameters: None 
+ 
+@Returns: None
+           
+@Revision History:
+DATE             NAME               REVISION COMMENT
+04/18/2017       Ruisi Ge           Initial Revision
+*----------------------------------------------------------------------------*/
+static void TimerInitiate (void)
+{
+    scHundredMicroseconds = 0;
+    T1CON = 0x0000; 		// stops the timer1 and reset control flag
+    TMR1 = 0xFFCD;                          //0XFFFF - 0x0050=50 pulses = 	100 usec count at Fosc = 8MHZ with Timer prescalar of 1:8
+  	IPC0bits.T1IP =0x3; 	// setup Timer1 interrupt for desired priority level
+	IEC0bits.T1IE = 1; 		// enable Timer1 interrupts	
+	T1CON = 0x8010;		 	// enable timer1 with prescalar of 1:8 
+}
+
+/*********************************************************************
+* Function:         void T1Interrupt(void)
+*
+* PreCondition:     none
+*
+* Input:		    none
+*
+* Output:		    none
+*
+* Side Effects:	    none
+*
+* Overview:		    Interrupt function for Timer1.  Set up to time out
+*					after 100 us, updates total time 
+*
+* Note:			    
+**********************************************************************/
+void _ISRFAST __attribute__((interrupt, auto_psv)) _T1Interrupt(void) 
+{
+    scHundredMicroseconds++;                // Calculate total time in hundred microseconds
+   	IFS0bits.T1IF = 0;						// Clear Timer 1 interrupt flag
+	TMR1 = 0xFFCD;                          //0XFFFF - 0x0050=50 pulses = 	100 usec count at Fosc = 8MHZ with Timer prescalar of 1:8; 
+	return;
+}
