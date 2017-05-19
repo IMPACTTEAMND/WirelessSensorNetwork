@@ -54,7 +54,7 @@
 #define CODE_VERSION 12
 #define EXTERNAL_SENSOR_CHANNEL 2
 
-#define RX_TIME 1
+#define RX_TIME 2
 #define SAMPLE_ADC_VALUE 8
 #define MAX_PACKET_SIZE 20
 #define UNDEFINED 0
@@ -492,6 +492,8 @@ static void scTransmit(BYTE * pbyTxBuffer, BYTE byLength)
 
     // Broadcast packet from transmit buffer
     MiApp_BroadcastPacket(FALSE);
+    
+    DelayMs(100);
 }
 
 
@@ -515,13 +517,20 @@ DATE             NAME               REVISION COMMENT
 static BOOL scfReceive(RECEIVED_MESSAGE * stReceiveMessageBuffer)
 {
     BOOL fRetVal = FALSE;
+    BYTE byTimeout = 0xFF;
 
-    if (MiApp_MessageAvailable())
+    // Timeout after 255ms
+    while (byTimeout > 0)
     {
-        * stReceiveMessageBuffer = rxMessage;
-        MiApp_DiscardMessage();
-
-        fRetVal = TRUE;
+        byTimeout--;
+        if (MiApp_MessageAvailable())
+        {
+            * stReceiveMessageBuffer = rxMessage;
+            MiApp_DiscardMessage();
+            fRetVal = TRUE;
+            break;
+        }
+        DelayMs(RX_TIME);
     }
     
     return fRetVal;
