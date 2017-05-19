@@ -56,10 +56,10 @@
 
 #define RX_TIME 1
 #define SAMPLE_ADC_VALUE 8
-#define MAX_PACKET_SIZE 50
+#define MAX_PACKET_SIZE 20
 #define UNDEFINED 0
-#define FIVE_SECONDS 5000000
-#define THIRTY_SECONDS 30000000
+#define FIVE_SECONDS 50000
+#define THIRTY_SECONDS 300000
 
 /* Uncomment for debugging */
 //#define DEBUG
@@ -119,7 +119,6 @@ typedef enum
    received from master was processed successfully */
 static BOOL scfSlaveStatus;
 static BYTE scabyResponseBuffer[MAX_PACKET_SIZE];
-static SLAVE_STATES_E sceConvertCommandToState(const COMMANDS_E keCommand);
 static DWORD scdwHundredMicroSecondsADC;
 static DWORD scdwHundredMicroSecondsCalibration;
 static WORD scawCalibrationRunningAvgValues[10];
@@ -136,6 +135,8 @@ static BOOL scfReceive(RECEIVED_MESSAGE *stReceiveMessageBuffer);
 static WORD scwADCRead(WORD wChannel);
 static void scCalibrateSensor(WORD wSensorChannel);
 static BOOL scfDoReadADC(WORD wSensorChannel);
+static SLAVE_STATES_E sceConvertCommandToState(COMMANDS_E eCommand);
+
 
 /*----------------------------------------------------------------------------
 
@@ -187,7 +188,7 @@ static void scMainInit(void)
     scwCalibrationMaxThreshold = UNDEFINED;
     scwCalibrationRunningAvg = UNDEFINED;
     
-    for (byI = 0; byI < (sizeof(scwCalibrationRunningAvg)/sizeof(scwCalibrationRunningAvg[0])); byI++)
+    for (byI = 0; byI < (sizeof(scawCalibrationRunningAvgValues)/sizeof(scawCalibrationRunningAvgValues[0])); byI++)
     {
         scawCalibrationRunningAvgValues[byI] = UNDEFINED;
     }
@@ -217,6 +218,7 @@ int main(void)
     RECEIVED_MESSAGE stReceivedMessage = (RECEIVED_MESSAGE) {0};
     SLAVE_STATES_E eSlaveStates = INACTIVE;
     CALIBRATION_STATES_E eCalibrationStates = CALIBRATION_INIT;
+    BOOL fCalibrating = TRUE;
     
     scMainInit();
 
@@ -237,11 +239,10 @@ int main(void)
                         stReceivedMessage = (RECEIVED_MESSAGE) {0};
                     }
                 }
-                else
+                else if (fCalibrating)
                 {
                     eSlaveStates = SENSOR_CALIBRATION;
                 }
-
                 break;
 
             case SENSOR_CALIBRATION:
@@ -266,6 +267,7 @@ int main(void)
                         break;
                         
                     case CALIBRATION_DONE:
+                        fCalibrating = FALSE;
                         break;
                         
                     default:
@@ -386,13 +388,13 @@ static void scCalibrateSensor(WORD wSensorChannel)
     BYTE byI;
     
     // On initial values, to populate the array of running avg
-    if ((smbyCurrentCount < (sizeof(scwCalibrationRunningAvg)/sizeof(scwCalibrationRunningAvg[0]))) && smfOnInitial) 
+    if ((smbyCurrentCount < (sizeof(scawCalibrationRunningAvgValues)/sizeof(scawCalibrationRunningAvgValues[0]))) && smfOnInitial) 
     {
-        scwCalibrationRunningAvg[smbyCurrentCount] = wPresentADCValue;
+        scawCalibrationRunningAvgValues[smbyCurrentCount] = wPresentADCValue;
         smbyCurrentCount++;
     }
     // Reset count to over write oldest values
-    else if (smbyCurrentCount >= (sizeof(scwCalibrationRunningAvg)/sizeof(scwCalibrationRunningAvg[0])))
+    else if (smbyCurrentCount >= (sizeof(scawCalibrationRunningAvgValues)/sizeof(scawCalibrationRunningAvgValues[0])))
     {
         smfOnInitial = FALSE;
         smbyCurrentCount = 0;
@@ -400,17 +402,17 @@ static void scCalibrateSensor(WORD wSensorChannel)
     // On values after initial values
     else
     {
-        scwCalibrationRunningAvg[smbyCurrentCount] = wPresentADCValue;
+        scawCalibrationRunningAvgValues[smbyCurrentCount] = wPresentADCValue;
         smbyCurrentCount++;
         
         // Sum all the values in the array
-        for (byI = 0; byI < (sizeof(scwCalibrationRunningAvg)/sizeof(scwCalibrationRunningAvg[0])); byI++)
+        for (byI = 0; byI < (sizeof(scawCalibrationRunningAvgValues)/sizeof(scawCalibrationRunningAvgValues[0])); byI++)
         {
-            wSum += scwCalibrationRunningAvg[byI];
+            wSum += scawCalibrationRunningAvgValues[byI];
         }
         
         // Calculate the running average
-        scwCalibrationRunningAvg = (wSum / (sizeof(scwCalibrationRunningAvg)/sizeof(scwCalibrationRunningAvg[0])));
+        scwCalibrationRunningAvg = (wSum / (sizeof(scawCalibrationRunningAvgValues)/sizeof(scawCalibrationRunningAvgValues[0])));
     }
     
     if (wPresentADCValue > scwCalibrationMaxThreshold)
@@ -426,7 +428,7 @@ static void scCalibrateSensor(WORD wSensorChannel)
  
 @Description: Convert a received command from master to a slave state
 
-@Parameters: const COMMANDS_E keCommand - The command from master
+@Parameters: COMMANDS_E eCommand - The command from master
 
 @Returns: void
 
@@ -435,11 +437,11 @@ DATE             NAME               REVISION COMMENT
 04/13/2017       Ali Haidous        Initial Revision
 
 *----------------------------------------------------------------------------*/
-static SLAVE_STATES_E sceConvertCommandToState(const COMMANDS_E keCommand)
+static SLAVE_STATES_E sceConvertCommandToState(COMMANDS_E eCommand)
 {
     SLAVE_STATES_E eSlaveState = INACTIVE;
 
-    switch (keCommand)
+    switch (eCommand)
     {
         case READ_ADC_CMD:
             eSlaveState = READ_ADC;
@@ -478,6 +480,7 @@ DATE             NAME               REVISION COMMENT
 static void scTransmit(BYTE * pbyTxBuffer, BYTE byLength)
 {
     BYTE byI;
+    
     // Clear the transmit buffer
     MiApp_FlushTx();
 

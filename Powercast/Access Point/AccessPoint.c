@@ -53,8 +53,11 @@
 #define CODE_VERSION 12
 
 #define ADC_CALC_MAX_TIME_MS 200
-#define RX_TIME 1
+#define RX_TIME 2
 #define DEBUG
+#define FIVE_SECONDS 5000
+#define THIRTY_SECONDS 30000
+#define MAX_PACKET_SIZE 20
 
 enum
 {
@@ -67,9 +70,8 @@ enum
 
 enum
 {
-    CALC_ADC_CMD,
+    READ_ADC_CMD,
     REQ_STATUS_CMD,
-    
 };
 
 
@@ -83,7 +85,8 @@ enum
 /* -- TYPEDEFS and STRUCTURES -- */
 typedef enum
 {
-    REQ_ADC_CALC,
+    INACTIVE,
+    REQ_READ_ADC,
     REQ_SLAVE_RES
 } MASTER_STATES_E;
 
@@ -94,8 +97,7 @@ typedef enum
 } SLAVE_RES_STATES_E;
 
 /* -- STATIC AND GLOBAL VARIABLES -- */
-static const BYTE kabySlaves[] = { SLAVE_0_ID };
-
+static const BYTE kabySlaves[] = { SLAVE_0_ID, SLAVE_1_ID };
 
 /* -- STATIC FUNCTION PROTOTYPES -- */
 static void scMainInit(void);
@@ -103,7 +105,7 @@ static void scTransmit(BYTE *pbyTxBuffer, BYTE byLength);
 static BOOL scfReceive(RECEIVED_MESSAGE *stReceiveMessageBuffer);
 static void scDoGlobalADCRequest(void);
 static void scReqSlaveStatus(const BYTE kbySlaveID);
-static void scPrintConsole(BYTE bySlaveID, WORD byADCValue);
+static void scPrintADCValuesToConsole(BYTE bySlaveID, BYTE * byADCValues);
 
 
 /*----------------------------------------------------------------------------
@@ -192,80 +194,136 @@ DATE             NAME               REVISION COMMENT
 *----------------------------------------------------------------------------*/
 int main(void)
 {
-    
     BYTE bySlaveIndex = 0;
-    
+    BYTE bySlaveRequestCount = 0;
     RECEIVED_MESSAGE stReceivedMessage = (RECEIVED_MESSAGE) {0};
-
-    MASTER_STATES_E eMasterStates = REQ_ADC_CALC;
-
+    MASTER_STATES_E eMasterStates = INACTIVE;
+    BYTE byADCVal[MAX_PACKET_SIZE];
+    BYTE byIndex;
+    
     scMainInit();
 
     while(TRUE)
     {
         switch(eMasterStates)
         {
-            case REQ_ADC_CALC:
-//#ifdef DEBUG
-//               ConsolePutROMString((ROM char *)"REQ_ADC_CALC\r\n");
-//#endif /* ifndef DEBUG */
-               
-               scDoGlobalADCRequest();
+            case INACTIVE:
+                // Turn OFF LED 1 and 2 to indicate inactive
+                LED_1 = 1;
+                LED_2 = 1;
+                bySlaveIndex = 0;
+                bySlaveRequestCount = 0;
+                if (ButtonPressed())
+                {
+                    // Turn ON LED 1 to indicate active
+                    LED_1 = 0;
+                    eMasterStates = REQ_READ_ADC;
+                }
+                break;
+                
+            case REQ_READ_ADC:
+#ifdef DEBUG
+ConsolePutROMString((ROM char *)"REQ_READ_ADC\r\n");
+#endif /* ifndef DEBUG */
+               // Time slave takes to calibrate
+               DelayMs(FIVE_SECONDS);
+#ifdef DEBUG
+ConsolePutROMString((ROM char *)"5sec calibration done\r\n");
+#endif /* ifndef DEBUG */
 
-               DelayMs(ADC_CALC_MAX_TIME_MS);            
+               scDoGlobalADCRequest();
+               
+               // Max time slave takes to read ADC
+               DelayMs(THIRTY_SECONDS);
+#ifdef DEBUG
+ConsolePutROMString((ROM char *)"30sec ADC read done\r\n");
+#endif /* ifndef DEBUG */
                eMasterStates = REQ_SLAVE_RES;
                break;
 
             case REQ_SLAVE_RES:
-                for (bySlaveIndex = 0; bySlaveIndex < sizeof(kabySlaves); bySlaveIndex++)
+#ifdef DEBUG
+ConsolePutROMString((ROM char *)"REQ_SLAVE_RES\r\n");
+#endif /* ifndef DEBUG */
+                while (bySlaveIndex < sizeof(kabySlaves))
                 {
                     scReqSlaveStatus(kabySlaves[bySlaveIndex]);
-
+                    
                     if (scfReceive(&stReceivedMessage))
                     {   
 #ifdef DEBUG
-               ConsolePutROMString((ROM char *)"received\r\n");
+ConsolePutROMString((ROM char *)"Rx'd Slave Response\r\n");
 #endif /* ifndef DEBUG */
                         if (stReceivedMessage.Payload[SLAVE_ID_INDEX] == bySlaveIndex)
                         {
                             switch ((SLAVE_RES_STATES_E)stReceivedMessage.Payload[COMMAND_INDEX])
                             {
                                 case SLAVE_NO_ACKNOWLEDGE:
-                                    ConsolePutROMString((ROM char *)"ERROR CASE, SLAVE_NO_ACKNOWLEDGE\r\n");
-                                    eMasterStates = REQ_ADC_CALC;
+                                    ConsolePutROMString((ROM char *)"ERROR CASE: SLAVE_NO_ACKNOWLEDGE\r\n");
                                     break;
 
                                 case SLAVE_ACKNOWLEDGE:
                                     ConsolePutROMString((ROM char *)"SLAVE_ACKNOWLEDGE\r\n");
-                                    WORD adcval = (stReceivedMessage.Payload[ADC_VALUE_INDEX]<<8) +stReceivedMessage.Payload[ADC_VALUE_INDEX+1];
-                                    scPrintConsole(bySlaveIndex, adcval);
+                                    for (byIndex = 0; byIndex < MAX_PACKET_SIZE-2; byIndex++)
+                                    {
+                                        byADCVal[byIndex] = stReceivedMessage.Payload[byIndex + ADC_VALUE_INDEX];
+                                    }
+                                    scPrintADCValuesToConsole(bySlaveIndex, byADCVal);
                                     break;
 
                                 default:
-                                    ConsolePutROMString((ROM char *)"ERROR CASE, COMMAND_INDEX invalid\r\n");
-                                    scPrintConsole(bySlaveIndex, stReceivedMessage.Payload[ADC_VALUE_INDEX]);
+#ifdef DEBUG
+ConsolePutROMString((ROM char *)"ERROR CASE: COMMAND_INDEX invalid\r\n");
+#endif
                                     break;
                             }
                         }
                         else
                         {
-                            // Error case
+#ifdef DEBUG
+ConsolePutROMString((ROM char *)"ERROR CASE: Invalid Slave ID\r\n");
+#endif /* ifndef DEBUG */
                             break;
                         }
+                        bySlaveIndex++;
                     }
                     else
                     {
-                        // Error case
-                        break;
+#ifdef DEBUG
+ConsolePutROMString((ROM char *)"ERROR CASE: Timed out waiting for slave response\r\n");
+#endif /* ifndef DEBUG */
+                        // Request again, upto 5 times
+                        if (bySlaveRequestCount < 5)
+                        {
+                            // Stay in this state
+                            
+                            // Increment slave request count
+                            bySlaveRequestCount++;
+                            
+                            // Delay to re-request
+                            DelayMs(1000);
+                        }
+                        // If we have other slaves, request them
+                        else if (bySlaveIndex < sizeof(kabySlaves))
+                        {
+                            // Stay in this state 
+                            
+                            // Reset the slave request count
+                            bySlaveRequestCount = 0;
+                            bySlaveIndex++;
+                        }
+                        else
+                        {
+                            break;
+                        }
                     }
                 }
-                eMasterStates = REQ_ADC_CALC;
-
+                eMasterStates = INACTIVE;
                 break;
 
             default:
                 // Error case
-                eMasterStates = REQ_ADC_CALC;
+                eMasterStates = INACTIVE;
                 break;
         }
     }
@@ -363,7 +421,7 @@ DATE             NAME               REVISION COMMENT
 *----------------------------------------------------------------------------*/
  static void scDoGlobalADCRequest(void)
 {
-    const BYTE kabyDataBuffer[] = { GLOBAL_ID, CALC_ADC_CMD };
+    const BYTE kabyDataBuffer[] = { GLOBAL_ID, READ_ADC_CMD };
 
     scTransmit((BYTE *)&kabyDataBuffer, sizeof(kabyDataBuffer));
 }
@@ -394,12 +452,12 @@ static void scReqSlaveStatus(const BYTE kbySlaveID)
 
 /*----------------------------------------------------------------------------
  
-@Prototype: static void scPrintConsole(BYTE bySlaveID, BYTE byADCValue)
+@Prototype: static void scPrintADCValuesToConsole(BYTE bySlaveID, BYTE * byADCValues);
  
 @Description: Pretty print some information to console
 
-@Parameters: BYTE bySlaveID 
-             BYTE byADCValue
+@Parameters: BYTE bySlaveID
+             BYTE * byADCValues
 
 @Returns: void
 
@@ -408,19 +466,22 @@ DATE             NAME               REVISION COMMENT
 04/07/2017       Ali Haidous        Initial Revision
 
 *----------------------------------------------------------------------------*/
-static void scPrintConsole(BYTE bySlaveID, WORD byADCValue)
+static void scPrintADCValuesToConsole(BYTE bySlaveID, BYTE * byADCValues)
 {
     char str[100];
-    ConsolePutROMString((ROM char*)"Node   ");
+    BYTE byIndex;
     
+    ConsolePutROMString((ROM char*)"Node: ");
     ConsolePut(bySlaveID % 10 + '0');
-    
     ConsolePutROMString((ROM char*)" | ");
-    ConsolePutROMString((ROM char*)"Value   ");
-    sprintf(str, "%d", byADCValue);
-   ConsolePutROMString((ROM char*)str); 
+    ConsolePutROMString((ROM char*)"Values: ");
 
-    
-    ConsolePutROMString((ROM char*)" | \r\n");
+    for (byIndex = 0; byIndex < MAX_PACKET_SIZE-2; byIndex++)
+    {
+        sprintf(str, "%d", (byADCValues[byIndex] << 1));
+        ConsolePutROMString((ROM char*)str);
+        ConsolePutROMString((ROM char*)" | ");
+    }
+    ConsolePutROMString((ROM char*)"\r\n");
 }
 
