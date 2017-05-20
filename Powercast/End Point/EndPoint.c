@@ -56,12 +56,27 @@
 
 #define RX_TIME 2
 #define SAMPLE_ADC_VALUE 8
-#define MAX_PACKET_SIZE 20
+#define MAX_PACKET_SIZE 100
+#define TOTAL_RESPONSE_BUFFERS 5
 #define UNDEFINED 0
-#define HUNDRED_US_TO_ONE_SEC 10000
-#define HUNDRED_US_TO_FIVE_SEC 50000
-#define HUNDRED_US_TO_THIRTY_SEC 300000
 
+// Timer 1 values
+//#define HUNDRED_USEC 0xFFCD
+#define HUNDRED_MSEC 0x3CAF
+#ifdef HUNDRED_USEC
+#define ONE_SEC 10000
+#define FIVE_SEC 50000
+#define THIRTY_SEC 300000
+#define PULSES HUNDRED_USEC
+#endif
+#ifdef HUNDRED_MSEC
+#define ONE_SEC 10
+#define FIVE_SEC 50
+#define THIRTY_SEC 300
+#define PULSES HUNDRED_MSEC
+#endif
+
+#define TIME_TO_MEASURE_ADC FIVE_SEC
 /* Uncomment for debugging */
 //#define DEBUG
 
@@ -107,23 +122,17 @@ typedef enum
     SLAVE_ACKNOWLEDGE
 } SLAVE_RES_STATES_E;
 
-typedef enum
-{
-    CALIBRATION_INIT,
-    CALIBRATE,
-    CALIBRATION_DONE     
-} CALIBRATION_STATES_E;
 
 
 /* -- STATIC AND GLOBAL VARIABLES -- */
 /* This value indicates that the last command
    received from master was processed successfully */
 static BOOL scfSlaveStatus;
-static BYTE scabyResponseBuffer[MAX_PACKET_SIZE];
-DWORD gdwHundredMicroSecondsADC;
-DWORD gdwHundredMicroSecondsCalibration;
+static BYTE scaabyResponseBuffer[MAX_PACKET_SIZE][TOTAL_RESPONSE_BUFFERS];
+DWORD gdwADCTicks;
+DWORD gdwCalibrationTicks;
 static WORD scawCalibrationRunningAvgValues[10];
-// We will not overflow since we will have only 10
+// We will not overflow since we will have only 10 bits in each of 10 ADCs. 1024*10=~11000
 static WORD scwCalibrationMaxThreshold;
 static WORD scwCalibrationRunningAvg;
 
@@ -131,7 +140,7 @@ static WORD scwCalibrationRunningAvg;
 /* -- STATIC FUNCTION PROTOTYPES -- */
 static void scMainInit(void);
 static void scTimerInterruptInit (void);
-static void scTransmit(BYTE *pbyTxBuffer, BYTE byLength);
+static void scTransmit(BYTE byLength, BYTE byBuffers, BYTE aabyTxBuffer[][byBuffers]);
 static BOOL scfReceive(RECEIVED_MESSAGE *stReceiveMessageBuffer);
 static WORD scwADCRead(WORD wChannel);
 static void scCalibrateSensor(WORD wSensorChannel);
@@ -155,12 +164,13 @@ DATE             NAME               REVISION COMMENT
 static void scMainInit(void)
 {
     BYTE byI;
+    BYTE byJ;
 
     BoardInit();
     scTimerInterruptInit();
-    
+
     SPI1STAT = 0x8000;  // Enable SPI bus to talk radio
-    
+
     /*******************************************************************/
     // Function MiApp_ProtocolInit initialize the protocol stack. The
     // only input parameter indicates if previous network configuration
@@ -181,22 +191,25 @@ static void scMainInit(void)
     //  DISABLE_ALL_CONN:   Disable all connections.
     /*******************************************************************/
     MiApp_ConnectionMode(ENABLE_ALL_CONN);
-    
+
     /* Initialize static variables */
     scfSlaveStatus = SLAVE_NO_ACKNOWLEDGE;
-    gdwHundredMicroSecondsADC = UNDEFINED;
-    gdwHundredMicroSecondsCalibration = UNDEFINED;
+    gdwADCTicks = UNDEFINED;
+    gdwCalibrationTicks = UNDEFINED;
     scwCalibrationMaxThreshold = UNDEFINED;
     scwCalibrationRunningAvg = UNDEFINED;
-    
+
     for (byI = 0; byI < (sizeof(scawCalibrationRunningAvgValues)/sizeof(scawCalibrationRunningAvgValues[0])); byI++)
     {
         scawCalibrationRunningAvgValues[byI] = UNDEFINED;
     }
-    
-    for (byI = 0; byI < (sizeof(scabyResponseBuffer)/sizeof(scabyResponseBuffer[0])); byI++)
+
+    for (byI = 0; byI < MAX_PACKET_SIZE; byI++)
     {
-        scabyResponseBuffer[byI] = UNDEFINED;
+        for (byJ = 0; byJ < TOTAL_RESPONSE_BUFFERS; byJ++)
+        {
+            scaabyResponseBuffer[byI][byJ] = UNDEFINED;
+        }
     }
 }
 
@@ -218,21 +231,22 @@ int main(void)
 {
     RECEIVED_MESSAGE stReceivedMessage = (RECEIVED_MESSAGE) {0};
     SLAVE_STATES_E eSlaveStates = INACTIVE;
-    CALIBRATION_STATES_E eCalibrationStates = CALIBRATION_INIT;
-    BOOL fCalibrating = TRUE;
-    
+    BYTE byI;
+
     scMainInit();
+
+    gdwCalibrationTicks = 0;
+    while (gdwCalibrationTicks < FIVE_SEC)
+    {
+        scCalibrateSensor(EXTERNAL_SENSOR_CHANNEL);
+    }
 
     while(TRUE)
     {
         switch(eSlaveStates)
         {
             case INACTIVE:
-                if (fCalibrating)
-                {
-                    eSlaveStates = SENSOR_CALIBRATION;
-                }
-                else if (scfReceive((RECEIVED_MESSAGE *)&stReceivedMessage))
+                if (scfReceive((RECEIVED_MESSAGE *)&stReceivedMessage))
                 {
                     if ((stReceivedMessage.Payload[SLAVE_ID_INDEX] == GLOBAL_ID) ||
                         (stReceivedMessage.Payload[SLAVE_ID_INDEX] == UNIQUE_SLAVE))
@@ -246,40 +260,6 @@ int main(void)
                 }
                 break;
 
-            case SENSOR_CALIBRATION:
-                switch (eCalibrationStates)
-                {
-                    case CALIBRATION_INIT:
-                        // Reset calibration timer
-                        gdwHundredMicroSecondsCalibration = 0;
-                        eCalibrationStates = CALIBRATE;
-                        break;
-                        
-                    case CALIBRATE:
-                        // Calibrate for 5 seconds
-                        if (gdwHundredMicroSecondsCalibration < HUNDRED_US_TO_FIVE_SEC)
-                        {
-                            scCalibrateSensor(EXTERNAL_SENSOR_CHANNEL);
-                        }
-                        else
-                        {
-                            eCalibrationStates = CALIBRATION_DONE;
-                        }
-                        break;
-                        
-                    case CALIBRATION_DONE:
-                        fCalibrating = FALSE;
-                        break;
-                        
-                    default:
-                        // We should never get here
-                        eCalibrationStates = CALIBRATION_INIT;
-                        break;
-                }
-                
-                eSlaveStates = INACTIVE;
-                break;
-                
             case READ_ADC:
                 if (scfDoReadADC(EXTERNAL_SENSOR_CHANNEL))
                 {
@@ -293,15 +273,18 @@ int main(void)
                 break;
 
             case SLAVE_RES: //TODO: more work needed to make generic
-                scabyResponseBuffer[SLAVE_ID_INDEX] = UNIQUE_SLAVE;
-                scabyResponseBuffer[COMMAND_INDEX] = (BYTE)scfSlaveStatus;
+                for (byI = 0; byI < TOTAL_RESPONSE_BUFFERS; byI++)
+                {
+                    scaabyResponseBuffer[SLAVE_ID_INDEX][byI] = UNIQUE_SLAVE;
+                    scaabyResponseBuffer[COMMAND_INDEX][byI] = (BYTE)scfSlaveStatus;
+                }
                 if (scfSlaveStatus == SLAVE_ACKNOWLEDGE)
                 {
-                    scTransmit((BYTE *)&scabyResponseBuffer, MAX_PACKET_SIZE);
+                    scTransmit(MAX_PACKET_SIZE, TOTAL_RESPONSE_BUFFERS, scaabyResponseBuffer);
                 }
                 else
                 {
-                    scTransmit((BYTE *)&scabyResponseBuffer, 2);
+                    scTransmit(2, 1, scaabyResponseBuffer);
                 }
                 eSlaveStates = INACTIVE;
                 break;
@@ -318,9 +301,9 @@ int main(void)
 
 
 /*----------------------------------------------------------------------------
- 
+
 @Prototype: static BOOL scfDoReadADC(WORD wSensorChannel)
- 
+
 @Description: Read as many ADC values as allowed after conditions to read are satisfied
 
 @Parameters: WORD wSensorChannel - The sensor to read
@@ -337,36 +320,44 @@ static BOOL scfDoReadADC(WORD wSensorChannel)
     BOOL fRetVal = FALSE;
     WORD wADCValue = 0;
     WORD wPacketIndex = ADC_VALUE_INDEX;
-    
+    BYTE byBuffers = 0;
+
     // Reset ADC Timer
-    gdwHundredMicroSecondsADC = 0; 
-    
-    while (gdwHundredMicroSecondsADC < HUNDRED_US_TO_THIRTY_SEC)
+    gdwADCTicks = 0;
+
+    while (gdwADCTicks < TIME_TO_MEASURE_ADC)
     {
         wADCValue = scwADCRead(wSensorChannel);
-        
+
+        // As soon a the max threshold is exceeded, take ADC samples of size MAX_PACKET_SIZE*TOTAL_RESPONSE_BUFFERS
         if (wADCValue > scwCalibrationMaxThreshold)
         {
             while (wPacketIndex < MAX_PACKET_SIZE)
             {
-                scabyResponseBuffer[wPacketIndex] = (BYTE)((wADCValue - scwCalibrationRunningAvg) >> 1);
+                scaabyResponseBuffer[wPacketIndex][byBuffers] = (BYTE)((wADCValue - scwCalibrationRunningAvg) >> 1);
                 wPacketIndex++;
                 wADCValue = scwADCRead(wSensorChannel);
+
+                if ((wPacketIndex == MAX_PACKET_SIZE) && (byBuffers < TOTAL_RESPONSE_BUFFERS))
+                {
+                    wPacketIndex = ADC_VALUE_INDEX;
+                    byBuffers++;
+                }
             }
             break;
         }
     }
-    
-    fRetVal = (gdwHundredMicroSecondsADC < HUNDRED_US_TO_THIRTY_SEC);
-    
+
+    fRetVal = (gdwADCTicks < TIME_TO_MEASURE_ADC);
+
     return fRetVal;
 }
 
 
 /*----------------------------------------------------------------------------
- 
+
 @Prototype: static void scCalibrateSensor(void)
- 
+
 @Description: Calculate running average and max threshold for sensor calibration
 
 @Parameters: WORD wSensorChannel - The sensor to calibrate
@@ -383,13 +374,13 @@ static void scCalibrateSensor(WORD wSensorChannel)
     // Used for running average calculation
     static BYTE smbyCurrentCount = 0;
     static BOOL smfOnInitial = TRUE;
-    
+
     WORD wPresentADCValue = scwADCRead(wSensorChannel);
     WORD wSum = 0;
     BYTE byI;
-    
+
     // On initial values, to populate the array of running avg
-    if ((smbyCurrentCount < (sizeof(scawCalibrationRunningAvgValues)/sizeof(scawCalibrationRunningAvgValues[0]))) && smfOnInitial) 
+    if ((smbyCurrentCount < (sizeof(scawCalibrationRunningAvgValues)/sizeof(scawCalibrationRunningAvgValues[0]))) && smfOnInitial)
     {
         scawCalibrationRunningAvgValues[smbyCurrentCount] = wPresentADCValue;
         smbyCurrentCount++;
@@ -405,17 +396,17 @@ static void scCalibrateSensor(WORD wSensorChannel)
     {
         scawCalibrationRunningAvgValues[smbyCurrentCount] = wPresentADCValue;
         smbyCurrentCount++;
-        
+
         // Sum all the values in the array
         for (byI = 0; byI < (sizeof(scawCalibrationRunningAvgValues)/sizeof(scawCalibrationRunningAvgValues[0])); byI++)
         {
             wSum += scawCalibrationRunningAvgValues[byI];
         }
-        
+
         // Calculate the running average
         scwCalibrationRunningAvg = (wSum / (sizeof(scawCalibrationRunningAvgValues)/sizeof(scawCalibrationRunningAvgValues[0])));
     }
-    
+
     if (wPresentADCValue > scwCalibrationMaxThreshold)
     {
         scwCalibrationMaxThreshold = wPresentADCValue;
@@ -424,9 +415,9 @@ static void scCalibrateSensor(WORD wSensorChannel)
 
 
 /*----------------------------------------------------------------------------
- 
+
 @Prototype: static SLAVE_STATES_E sceConvertCommandToState(const COMMANDS_E keCommand)
- 
+
 @Description: Convert a received command from master to a slave state
 
 @Parameters: COMMANDS_E eCommand - The command from master
@@ -463,13 +454,15 @@ static SLAVE_STATES_E sceConvertCommandToState(COMMANDS_E eCommand)
 
 
 /*----------------------------------------------------------------------------
- 
+
 @Prototype: static void scTransmit(BYTE * pbyTxBuffer, BYTE byLength)
- 
+
 @Description: Request ADC from all slaves
 
-@Parameters: BYTE * pbyTxBuffer - Pointer to the buffer of bytes to transmit 
+@Parameters: BYTE aabyTxBuffer[][byBuffers] - Pointer to the buffer of 
+                                              bytes to transmit
              BYTE byLength - The length of bytes
+             BYTE byBuffers - Total buffers to Tx
 
 @Returns: void
 
@@ -478,37 +471,41 @@ DATE             NAME               REVISION COMMENT
 04/07/2017       Ali Haidous        Initial Revision
 
 *----------------------------------------------------------------------------*/
-static void scTransmit(BYTE * pbyTxBuffer, BYTE byLength)
+static void scTransmit(BYTE byLength, BYTE byBuffers, BYTE aabyTxBuffer[][byBuffers])
 {
     BYTE byI;
-    
+    BYTE byJ;
+
     // Clear the transmit buffer
     MiApp_FlushTx();
 
-    // Write new frame to transmit buffer
-    for (byI = 0; byI < byLength; byI++)
+    for (byJ = 0; byJ < byBuffers; byJ++)
     {
-         MiApp_WriteData(pbyTxBuffer[byI]);
-    }
+        // Write new frame to transmit buffer
+        for (byI = 0; byI < byLength; byI++)
+        {
+             MiApp_WriteData(aabyTxBuffer[byI][byJ]);
+        }
 
-    // Broadcast packet from transmit buffer
-    MiApp_BroadcastPacket(FALSE);
-    
-    DelayMs(100);
+        // Broadcast packet from transmit buffer
+        MiApp_BroadcastPacket(FALSE);
+
+        DelayMs(100);
+    }
 }
 
 
 /*----------------------------------------------------------------------------
- 
+
 @Prototype: static BOOL scfReceive(void)
- 
+
 @Description: Wait until we receive a packet
 
-@Parameters: RECEIVED_MESSAGE * stReceiveMessageBuffer - Out parameter for the 
-             received message. 
- 
+@Parameters: RECEIVED_MESSAGE * stReceiveMessageBuffer - Out parameter for the
+             received message.
+
 @Returns: TRUE: If we received a packet, FALSE otherwise
-           
+
 
 @Revision History:
 DATE             NAME               REVISION COMMENT
@@ -533,21 +530,21 @@ static BOOL scfReceive(RECEIVED_MESSAGE * stReceiveMessageBuffer)
         }
         DelayMs(RX_TIME);
     }
-    
+
     return fRetVal;
 }
 
 
 /*----------------------------------------------------------------------------
- 
+
 @Prototype: static WORD scwADCRead(WORD wADCChannel)
- 
+
 @Description: Read an ADC value from a given ADC channel
 
-@Parameters: WORD wADCChannel - ADC Channel 
- 
+@Parameters: WORD wADCChannel - ADC Channel
+
 @Returns: WORD: The ADC value
-           
+
 
 @Revision History:
 DATE             NAME               REVISION COMMENT
@@ -558,17 +555,17 @@ static WORD scwADCRead(WORD wADCChannel)
 {
     WORD wI = 0;
     WORD wADCVal = SAMPLE_ADC_VALUE;
-    
+
     SPI1STAT = 0x0000;  // Disable SPI bus to read ADC
-        
-    AD1CHS = wADCChannel;           // set channel to measure 
+
+    AD1CHS = wADCChannel;           // set channel to measure
     AD1CON1bits.ADON = 1;        // turn ADC on for taking readings
     for (wI = 0; wI < 150; wI++);
     AD1CON1bits.SAMP = 1;       // start sampling
     while (!AD1CON1bits.DONE);  // wait for ADC to complete
     wADCVal = ADC1BUF0;
     AD1CON1bits.ADON = 0;       // turn ADC off for before taking next reading
-    
+
     SPI1STAT = 0x8000;  // Enable SPI bus to talk radio
 
     return wADCVal;
@@ -576,25 +573,25 @@ static WORD scwADCRead(WORD wADCChannel)
 
 
 /*----------------------------------------------------------------------------
- 
+
 @Prototype: static void scTimerInit (void)
- 
+
 @Description: initiate the timer interrupt
-@Parameters: None 
- 
+@Parameters: None
+
 @Returns: None
-           
+
 @Revision History:
 DATE             NAME               REVISION COMMENT
 04/18/2017       Ruisi Ge           Initial Revision
 *----------------------------------------------------------------------------*/
 static void scTimerInterruptInit (void)
-{   
-    T1CON = 0x0000; 		// stops the timer1 and reset control flag
-    TMR1 = 0xFFCD;                          //0XFFFF - 0x0050=50 pulses = 	100 usec count at Fosc = 8MHZ with Timer prescalar of 1:8
-  	IPC0bits.T1IP =0x7; 	// setup Timer1 interrupt for desired priority level
-	IEC0bits.T1IE = 1; 		// enable Timer1 interrupts	
-	T1CON = 0x8010;		 	// enable timer1 with prescalar of 1:8 
+{
+    T1CON = 0x0000;         // stops the timer1 and reset control flag
+    TMR1 = PULSES;          //0XFFFF - 0x0050=50 pulses =   100 usec count at Fosc = 8MHZ with Timer prescalar of 1:8
+    IPC0bits.T1IP =0x7;     // setup Timer1 interrupt for desired priority level
+    IEC0bits.T1IE = 1;      // enable Timer1 interrupts
+    T1CON = 0x8010;         // enable timer1 with prescalar of 1:8
 }
 
 
@@ -603,22 +600,22 @@ static void scTimerInterruptInit (void)
 *
 * PreCondition:     none
 *
-* Input:		    none
+* Input:            none
 *
-* Output:		    none
+* Output:           none
 *
-* Side Effects:	    none
+* Side Effects:     none
 *
-* Overview:		    Interrupt function for Timer1.  Set up to time out
-*					after 100 us, updates total time 
+* Overview:         Interrupt function for Timer1.  Set up to time out
+*                   after 100 us, updates total time
 *
-* Note:			    
+* Note:
 **********************************************************************/
-void _ISRFAST __attribute__((interrupt, auto_psv)) _T1Interrupt(void) 
+void _ISRFAST __attribute__((interrupt, auto_psv)) _T1Interrupt(void)
 {
-    gdwHundredMicroSecondsADC++;
-    gdwHundredMicroSecondsCalibration++;
-   	IFS0bits.T1IF = 0;						// Clear Timer 1 interrupt flag
-	TMR1 = 0xFFCD;                          //0XFFFF - 0x0050=50 pulses = 	100 usec count at Fosc = 8MHZ with Timer prescalar of 1:8; 
-	return;
+    gdwADCTicks++;
+    gdwCalibrationTicks++;
+    IFS0bits.T1IF = 0;                      // Clear Timer 1 interrupt flag
+    TMR1 = PULSES;                          //0XFFFF - 0x0050=50 pulses =   100 usec count at Fosc = 8MHZ with Timer prescalar of 1:8;
+    return;
 }
