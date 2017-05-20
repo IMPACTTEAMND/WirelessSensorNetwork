@@ -48,13 +48,14 @@
 #define T_0                         298.15      // Temp in kelvin at 25C
 #define MYCHANNEL                   25
 #define CODE_VERSION                15
-#define MAX_PACKET_SEQUENCE         5       
-#define MAX_DATA_SIZE               20          // Max data packet= (MAX_PACKET_SIZE-HEADERCOOMANDSIZE)/2
-#define ADC_CALC_MAX_TIME_MS        200
-#define RX_TIME                     1
+#define MAX_PACKET_SEQUENCE         1       
+#define MAX_DATA_SIZE               25          // Max data packet= (MAX_PACKET_SIZE-HEADERCOOMANDSIZE)/2
+#define ADC_CALC_MAX_TIME_MS        300
+#define FIVE_SECONDS                5000
+#define RX_TIME                     2
 #define HEADERCOOMANDSIZE           3
 #define TIMEHEADERSIZE              4
-#define THRESHHOLDVALUEHEADER       1
+#define THRESHHOLDVALUEHEADER       2
 
 enum
 {
@@ -82,6 +83,7 @@ enum
     TIME_2_BYTE,
     TIME_3_BYTE,
     TIME_4_BYTE,
+    MAX_VALUE_HIGH_BYTE,
     MAX_VALUE_LOW_BYTE,
 };
 
@@ -107,11 +109,13 @@ typedef enum
 
 /* -- STATIC AND GLOBAL VARIABLES -- */
 
- static const BYTE kabySlaves[] = { SLAVE_0_ID };
+ static const BYTE kabySlaves[] = { SLAVE_0_ID, SLAVE_1_ID };
  static unsigned int  ADCValue[MAX_PACKET_SEQUENCE][MAX_DATA_SIZE] ;
  static BYTE ADCHighValue[MAX_PACKET_SEQUENCE][MAX_DATA_SIZE] ;
   static BYTE ADCLowValue[MAX_PACKET_SEQUENCE][MAX_DATA_SIZE] ;
  static unsigned int  MaxThreshouldValue;                     // Max threshhold value received 
+ static BYTE MaxThreshouldValueHighByte;
+ static BYTE MaxThreshouldValueLowByte;
  static unsigned long TotalHundredMicroseconds; 
  static BYTE MissingPacketSequence;
  static BYTE byHundredMicroseconds1stByte;                 // First Byte for Milliseconds 
@@ -160,7 +164,7 @@ static void scMainInit(void)
     LED_2 = 1;
     
     // Initial Startup Display
-    ConsolePutROMString((ROM char*)"\r\nNDSU ECE 209");
+    ConsolePutROMString((ROM char*)"\r\nNDSU ECE 209 Ruisi ");
     ConsolePutROMString((ROM char*)"\r\n Wireless sensor network ");
     ConsolePutROMString((ROM char*)"\r\nVersion ");
     ConsolePut((CODE_VERSION / 10) % 10 + '0');
@@ -230,20 +234,21 @@ int main(void)
                 PressedButton = ButtonPressed();
                 if (PressedButton == 1)
                 {
+                     DelayMs(FIVE_SECONDS);       //Allow the end device to CALIBRATE
                     eMasterStates = REQ_ADC_CALC;
                 }
                 break;
                         
-            case REQ_ADC_CALC:                   
+            case REQ_ADC_CALC:       
+//               DelayMs(FIVE_SECONDS);       //Allow the end device to CALIBRATE
                scDoGlobalADCRequest();
                DelayMs(ADC_CALC_MAX_TIME_MS);   
                eMasterStates = REQ_SLAVE_RES;
                break;
 
             case REQ_SLAVE_RES:               
-                    switch(eRequestRespondStates)
-                    {
-                        case REQ_FULL_MESSAGE:                            
+                        for (bySlaveIndex = 0; bySlaveIndex < sizeof(kabySlaves); bySlaveIndex++)
+                        {
                             for(byPacketSequence = 0;byPacketSequence < MAX_PACKET_SEQUENCE;byPacketSequence++)
                             {   
                                 scReqSlaveStatus(kabySlaves[bySlaveIndex],byPacketSequence );
@@ -259,7 +264,7 @@ int main(void)
                                                 break;
 
                                             case SLAVE_ACKNOWLEDGE:                                    
-                                                ConsolePutROMString((ROM char *)"SLAVE_ACKNOWLEDGE\r\n"); 
+//                                                ConsolePutROMString((ROM char *)"SLAVE_ACKNOWLEDGE\r\n"); 
                                                 byCheckSum[stReceivedMessage.Payload[SEQUENCE_INDEX]]=1;          // Fill in the CheckSum Array 
                                                 scCollectandSortMessage(stReceivedMessage.Payload[SEQUENCE_INDEX],stReceivedMessage);  
                                                 scPrintConsole(bySlaveIndex,byPacketSequence);
@@ -271,64 +276,11 @@ int main(void)
                                         }
                                     }
                                 }
-                            }
-                            eRequestRespondStates= CHECK_MESSAGE;
-                            break;
-                                                       
-                        case CHECK_MESSAGE:
-                            if (scMessageFullyReceive())                        // when Message fully received 
-                            {
-                                ConsolePutROMString((ROM char *)"Message Fully Received");
-                                scClearCheckSum();                              // clear CheckSum after full receive the message     
-                                bySlaveIndex = bySlaveIndex+1;                 // when ever fully received, move on to the next node
-                                if (bySlaveIndex ==sizeof(kabySlaves) )         // when reach to the size, reset SlaveIndex and go to the ADC request state
-                                {
-                                    bySlaveIndex = 0;                          // go to the first slave
-                                    eMasterStates = REQ_ADC_CALC;
-                                    eRequestRespondStates = REQ_FULL_MESSAGE;
-                                    break;    
-                                }
-                                eRequestRespondStates = REQ_FULL_MESSAGE;        // else it only remains on the request respond states,
-                                break;
-                            }
-                            else                                                // when Message is not fully received, go to he request miss message state
-                            {
-                                eRequestRespondStates = REQ_MISS_MESSAGE;
-                                break;
-                            } 
-                            break;
-                        
-                        case REQ_MISS_MESSAGE:
-                            scReqMissingPack(kabySlaves[bySlaveIndex],MissingPacketSequence);
-                            if (scfReceive(&stReceivedMessage))
-                                {   
-
-                                    if (stReceivedMessage.Payload[SLAVE_ID_INDEX] == bySlaveIndex)
-                                    {
-                                        switch ((SLAVE_RES_STATES_E)stReceivedMessage.Payload[COMMAND_INDEX])
-                                        {
-                                            case SLAVE_NO_ACKNOWLEDGE:
-                                                ConsolePutROMString((ROM char *)"ERROR CASE, SLAVE_NO_ACKNOWLEDGE\r\n");
-                                                eMasterStates = REQ_ADC_CALC;
-                                                break;
-
-                                            case SLAVE_ACKNOWLEDGE:                                    
-                                                ConsolePutROMString((ROM char *)"SLAVE_ACKNOWLEDGE\r\n"); 
-                                                byCheckSum[stReceivedMessage.Payload[SEQUENCE_INDEX]]=1;          // Fill in the CheckSum Array 
-                                                scCollectandSortMessage(stReceivedMessage.Payload[SEQUENCE_INDEX],stReceivedMessage);                                                                   
-                                                break;
-
-                                            default:
-                                                ConsolePutROMString((ROM char *)"ERROR CASE, COMMAND_INDEX invalid\r\n");                                                 
-                                                break;
-                                        }
-                                    }
-                                }                 
-                            eRequestRespondStates = CHECK_MESSAGE;
-                            break;                
-                    }              
-                break;
-                
+                            }      
+                         }         
+                         eMasterStates = REQ_ADC_CALC;
+                            break;                                                                                                  
+                                                                
             default:
                 // Error case
                 eMasterStates = REQ_ADC_CALC;
@@ -460,7 +412,9 @@ static void scCollectandSortMessage(BYTE PacketSequence,RECEIVED_MESSAGE stRecei
     byHundredMicroseconds2ndByte=stReceivedMessageBuffer.Payload[TIME_2_BYTE];
     byHundredMicroseconds3rdByte=stReceivedMessageBuffer.Payload[TIME_3_BYTE];
     byHundredMicroseconds4thByte=stReceivedMessageBuffer.Payload[TIME_4_BYTE];
-    MaxThreshouldValue=stReceivedMessageBuffer.Payload[MAX_VALUE_LOW_BYTE];
+    MaxThreshouldValueHighByte = stReceivedMessageBuffer.Payload[MAX_VALUE_HIGH_BYTE];
+    MaxThreshouldValueLowByte=stReceivedMessageBuffer.Payload[MAX_VALUE_LOW_BYTE];
+    MaxThreshouldValue= ((unsigned int)MaxThreshouldValueHighByte<<8) + MaxThreshouldValueLowByte;
     TotalHundredMicroseconds = ((unsigned long)byHundredMicroseconds1stByte<<24)+((unsigned long)byHundredMicroseconds2ndByte<<16)+((unsigned int)byHundredMicroseconds3rdByte<<8)+byHundredMicroseconds4thByte;
     
     for (byDataCount=0; byDataCount<MAX_DATA_SIZE;byDataCount++)
@@ -514,7 +468,7 @@ static void scPrintConsole(BYTE bySlaveID,BYTE PacketSequence )
 {   
     BYTE byDataCount;
     char str[100];
-    ConsolePutROMString((ROM char*)"Node ");   
+    ConsolePutROMString((ROM char*)"\r\nNode ");   
     ConsolePut(bySlaveID % 10 + '0');
     ConsolePutROMString((ROM char*)" | ");
     ConsolePutROMString((ROM char*)"Sequence ");
