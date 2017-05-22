@@ -49,14 +49,14 @@
 #define CALIBRATE_DATA_SIZE 10
 #define SELF_CALIBRATE_MAX_TIME_MS    300
 #define MAX_PACKET_SIZE     98
-#define MAX_DATA_SIZE       25          
+#define MAX_DATA_SIZE       75         
 #define TEST_MAX            0          // test value, need to delete it later
-#define MAX_PACKET_SEQUENCE 1 
+#define MAX_PACKET_SEQUENCE 4 
 #define UNDEFINED           0
 #define HEADERCOOMANDSIZE   3         // header include 1 BYTE DEVICE ID,1 BYTE COMMAND, 1 BYTE SEQUENCE, 4 BYTE TIME  
 #define TIMEHEADERSIZE      4         // Timer header include 4 byte timer header size
 #define THRESHHOLDVALUEHEADER 2       // Threshhold value size 1
-#define FIVE_SECONDS        50000
+#define FIVE_SECONDS        50
 
 /* Uncomment for debugging */
 //#define DEBUG
@@ -69,7 +69,7 @@ enum
     GLOBAL_ID = 0xFF
 };
 //TODO: EDIT THIS FOR UNIQUE SLAVE DEVICE
-#define UNIQUE_SLAVE SLAVE_1_ID
+#define UNIQUE_SLAVE SLAVE_0_ID
 
 enum
 {
@@ -133,8 +133,8 @@ static unsigned char scMaxThreshholdL;                  // Low BYTE value for Ma
 static unsigned char scMaxThreshholdH;
 static unsigned int  scADCValue[MAX_PACKET_SEQUENCE][MAX_DATA_SIZE]; 
 static unsigned char scabyResponseBuffer[MAX_PACKET_SIZE];
-static unsigned char scADCH[MAX_PACKET_SEQUENCE][MAX_DATA_SIZE];
-static unsigned char scADCL[MAX_PACKET_SEQUENCE][MAX_DATA_SIZE];
+//static unsigned char scADCH[MAX_PACKET_SEQUENCE][MAX_DATA_SIZE];
+//static unsigned char scADCL[MAX_PACKET_SEQUENCE][MAX_DATA_SIZE];
 static WORD scawCalibrationRunningAvgValues[10];
 static DWORD scdwHundredMicroSecondsADC;
 static DWORD scdwHundredMicroSecondsCalibration;
@@ -226,10 +226,11 @@ int main(void)
     BOOL CALIBRATION_FINISHED = FALSE ;
     TimerInitiate();
     scMainInit();
-//    while (scdwHundredMicroSecondsCalibration<FIVE_SECONDS)
-//    {
-//         scCalibrateSensor(EXT_CHANNEL);
-//    }
+    while (scdwHundredMicroSecondsCalibration<FIVE_SECONDS)
+    {
+         scCalibrateSensor(EXT_CHANNEL);
+    }
+    
     while(TRUE)
     {
         switch(eSlaveStates)
@@ -324,7 +325,8 @@ int main(void)
                 break;
             case SLAVE_RES: //TODO: more work needed to make generic
                 scAllocateRespondBuffer(stReceivedMessage.Payload[SEQUENCE_INDEX]);
-                scTransmit((BYTE *)&scabyResponseBuffer, 2*MAX_DATA_SIZE+HEADERCOOMANDSIZE+TIMEHEADERSIZE+THRESHHOLDVALUEHEADER);    // how big the transmit buffer is 
+                DelayMs(100);
+                scTransmit((BYTE *)&scabyResponseBuffer, MAX_DATA_SIZE+HEADERCOOMANDSIZE+TIMEHEADERSIZE+THRESHHOLDVALUEHEADER);    // how big the transmit buffer is 
                 eSlaveStates = INACTIVE;
                 break;
                 
@@ -457,8 +459,7 @@ static unsigned int scADCRead(WORD wADCChannel)
     LOCAL_ADCVal = ADC1BUF0;
     AD1CON1bits.ADON = 0;       // turn ADC off for before taking next reading
     SPI1STAT = 0x8000;  // Enable SPI bus to talk radio
-//    LOCAL_ADCVal = SAMPLE_ADC_VALUE;
-    DelayMs(1);           
+//    LOCAL_ADCVal = SAMPLE_ADC_VALUE;          
     return LOCAL_ADCVal;
 }
 
@@ -485,14 +486,14 @@ static void scSpiltData(void)
 //    scHundredMicroseconds2ndByte=scADCStartTime>>16;
 //    scHundredMicroseconds3rdByte=scADCStartTime>>8;
 //    scHundredMicroseconds4thByte=scADCStartTime;
-    for (byPacketSequence=0;byPacketSequence< MAX_PACKET_SEQUENCE;byPacketSequence++)
-    {
-        for (bySpiltDataCount=0;bySpiltDataCount< MAX_DATA_SIZE;bySpiltDataCount++)
-        {
-            scADCH[byPacketSequence][bySpiltDataCount] = scADCValue[byPacketSequence][bySpiltDataCount] >> 8;
-            scADCL[byPacketSequence][bySpiltDataCount] = scADCValue[byPacketSequence][bySpiltDataCount]; 
-        }
-    }
+//    for (byPacketSequence=0;byPacketSequence< MAX_PACKET_SEQUENCE;byPacketSequence++)
+//    {
+//        for (bySpiltDataCount=0;bySpiltDataCount< MAX_DATA_SIZE;bySpiltDataCount++)
+//        {
+//            scADCL[byPacketSequence][bySpiltDataCount] = scADCValue[byPacketSequence][bySpiltDataCount]-400;
+////            scADCL[byPacketSequence][bySpiltDataCount] = scADCValue[byPacketSequence][bySpiltDataCount]; 
+//        }
+//    }
    
 }
 
@@ -524,8 +525,8 @@ static void scAllocateRespondBuffer(BYTE PacketSequence)
     scabyResponseBuffer[MAX_VALUE_LOW_BYTE] = scMaxThreshholdL;
     for (DataCount=0;DataCount< MAX_DATA_SIZE;DataCount++)
         {
-            scabyResponseBuffer[2*DataCount+HEADERCOOMANDSIZE+TIMEHEADERSIZE+THRESHHOLDVALUEHEADER] = scADCH[PacketSequence][DataCount];
-            scabyResponseBuffer[2*DataCount+HEADERCOOMANDSIZE+TIMEHEADERSIZE+THRESHHOLDVALUEHEADER+1] = scADCL[PacketSequence][DataCount];
+//            scabyResponseBuffer[2*DataCount+HEADERCOOMANDSIZE+TIMEHEADERSIZE+THRESHHOLDVALUEHEADER] = scADCH[PacketSequence][DataCount];
+            scabyResponseBuffer[DataCount+HEADERCOOMANDSIZE+TIMEHEADERSIZE+THRESHHOLDVALUEHEADER+1] = scADCValue[PacketSequence][DataCount]-400;
         } 
 }
 
@@ -546,7 +547,7 @@ static void TimerInitiate (void)
 {
 
     T1CON = 0x0000; 		// stops the timer1 and reset control flag
-    TMR1 = 0xFFCD;                          //0XFFFF - 0x0050=50 pulses = 	100 usec count at Fosc = 8MHZ with Timer prescalar of 1:8
+    TMR1 = 0x3CAF;                          //0XFFFF - 0x0050=50 pulses = 	100 usec count at Fosc = 8MHZ with Timer prescalar of 1:8
   	IPC0bits.T1IP =0x7; 	// setup Timer1 interrupt for desired priority level
 	IEC0bits.T1IE = 1; 		// enable Timer1 interrupts	
 	T1CON = 0x8010;		 	// enable timer1 with prescalar of 1:8 
@@ -574,7 +575,7 @@ void _ISRFAST __attribute__((interrupt, auto_psv)) _T1Interrupt(void)
     scdwHundredMicroSecondsADC++;
     scdwHundredMicroSecondsCalibration++;
    	IFS0bits.T1IF = 0;						// Clear Timer 1 interrupt flag
-	TMR1 = 0xFFCD;                          //0XFFFF - 0x0050=50 pulses = 	100 usec count at Fosc = 8MHZ with Timer prescalar of 1:8; 
+	TMR1 = 0x3CAF;                          //0XFFFF - 0x0050=50 pulses = 	100 usec count at Fosc = 8MHZ with Timer prescalar of 1:8; 
 	return;
 }
 /*----------------------------------------------------------------------------

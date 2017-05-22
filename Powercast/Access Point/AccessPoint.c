@@ -48,8 +48,8 @@
 #define T_0                         298.15      // Temp in kelvin at 25C
 #define MYCHANNEL                   25
 #define CODE_VERSION                15
-#define MAX_PACKET_SEQUENCE         1       
-#define MAX_DATA_SIZE               25          // Max data packet= (MAX_PACKET_SIZE-HEADERCOOMANDSIZE)/2
+#define MAX_PACKET_SEQUENCE         4       
+#define MAX_DATA_SIZE               75          // Max data packet= (MAX_PACKET_SIZE-HEADERCOOMANDSIZE)/2
 #define ADC_CALC_MAX_TIME_MS        300
 #define FIVE_SECONDS                5000
 #define RX_TIME                     2
@@ -111,8 +111,8 @@ typedef enum
 
  static const BYTE kabySlaves[] = { SLAVE_0_ID, SLAVE_1_ID };
  static unsigned int  ADCValue[MAX_PACKET_SEQUENCE][MAX_DATA_SIZE] ;
- static BYTE ADCHighValue[MAX_PACKET_SEQUENCE][MAX_DATA_SIZE] ;
-  static BYTE ADCLowValue[MAX_PACKET_SEQUENCE][MAX_DATA_SIZE] ;
+// static BYTE ADCHighValue[MAX_PACKET_SEQUENCE][MAX_DATA_SIZE] ;
+//  static BYTE ADCLowValue[MAX_PACKET_SEQUENCE][MAX_DATA_SIZE] ;
  static unsigned int  MaxThreshouldValue;                     // Max threshhold value received 
  static BYTE MaxThreshouldValueHighByte;
  static BYTE MaxThreshouldValueLowByte;
@@ -415,13 +415,15 @@ static void scCollectandSortMessage(BYTE PacketSequence,RECEIVED_MESSAGE stRecei
     MaxThreshouldValueHighByte = stReceivedMessageBuffer.Payload[MAX_VALUE_HIGH_BYTE];
     MaxThreshouldValueLowByte=stReceivedMessageBuffer.Payload[MAX_VALUE_LOW_BYTE];
     MaxThreshouldValue= ((unsigned int)MaxThreshouldValueHighByte<<8) + MaxThreshouldValueLowByte;
+    MaxThreshouldValue= MaxThreshouldValue -400;
     TotalHundredMicroseconds = ((unsigned long)byHundredMicroseconds1stByte<<24)+((unsigned long)byHundredMicroseconds2ndByte<<16)+((unsigned int)byHundredMicroseconds3rdByte<<8)+byHundredMicroseconds4thByte;
     
     for (byDataCount=0; byDataCount<MAX_DATA_SIZE;byDataCount++)
         {
-            ADCHighValue[PacketSequence][byDataCount] = stReceivedMessageBuffer.Payload[2*byDataCount+HEADERCOOMANDSIZE+TIMEHEADERSIZE+THRESHHOLDVALUEHEADER];
-            ADCLowValue[PacketSequence][byDataCount] = stReceivedMessageBuffer.Payload[2*byDataCount+HEADERCOOMANDSIZE+TIMEHEADERSIZE+THRESHHOLDVALUEHEADER+1];
-            ADCValue[PacketSequence][byDataCount] =((unsigned int)ADCHighValue[PacketSequence][byDataCount]<<8)+ ADCLowValue[PacketSequence][byDataCount];
+//            ADCHighValue[PacketSequence][byDataCount] = stReceivedMessageBuffer.Payload[2*byDataCount+HEADERCOOMANDSIZE+TIMEHEADERSIZE+THRESHHOLDVALUEHEADER];
+//             stReceivedMessageBuffer.Payload[byDataCount+HEADERCOOMANDSIZE+TIMEHEADERSIZE+THRESHHOLDVALUEHEADER];
+            ADCValue[PacketSequence][byDataCount] = stReceivedMessageBuffer.Payload[byDataCount+HEADERCOOMANDSIZE+TIMEHEADERSIZE+THRESHHOLDVALUEHEADER];
+//                    ((unsigned int)ADCHighValue[PacketSequence][byDataCount]<<8)+ ADCLowValue[PacketSequence][byDataCount];
 //            ADCValue[PacketSequence][byDataCount]=stReceivedMessageBuffer.Payload[2*byDataCount+HEADERCOOMANDSIZE+TIMEHEADERSIZE+THRESHHOLDVALUEHEADER+1]; // this only receive the lower 8 BYTE of the ADC value, the Max is 300 mv  
         }  
 }
