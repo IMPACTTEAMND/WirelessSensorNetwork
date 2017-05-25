@@ -48,7 +48,7 @@
 #define SAMPLE_ADC_VALUE    5
 #define CALIBRATE_DATA_SIZE 10
 #define SELF_CALIBRATE_MAX_TIME_MS    300
-#define MAX_PACKET_SIZE     98
+#define MAX_PACKET_SIZE     100
 #define MAX_DATA_SIZE       75         
 #define TEST_MAX            0          // test value, need to delete it later
 #define MAX_PACKET_SEQUENCE 4 
@@ -69,7 +69,7 @@ enum
     GLOBAL_ID = 0xFF
 };
 //TODO: EDIT THIS FOR UNIQUE SLAVE DEVICE
-#define UNIQUE_SLAVE SLAVE_0_ID
+#define UNIQUE_SLAVE SLAVE_1_ID
 
 enum
 {
@@ -88,7 +88,6 @@ enum
 typedef enum
 {
     INACTIVE,
-    SENSOR_CALIBRATION,
     ADC_CALC,
     SLAVE_RES,
 } SLAVE_STATES_E;
@@ -106,6 +105,7 @@ typedef enum
     ADC_MEASURING,
 }ADC_STATES_E;
 
+
 typedef enum
 {
     CALC_ADC_CMD,
@@ -113,17 +113,8 @@ typedef enum
     REQ_MISS_MESSAGE_CMD
 } COMMANDS_E;
 
-typedef enum
-{
-    CALIBRATION_INIT,
-    CALIBRATE,
-    CALIBRATION_DONE     
-} CALIBRATION_STATES_E;
 
 /* -- STATIC AND GLOBAL VARIABLES -- */
-static unsigned int  scMaxThreshhold=0;
-static unsigned int  scMaxThreshholdQue[CALIBRATE_DATA_SIZE]= {0};
-static BOOL ADCFlag;
 static uint32_t scHundredMicroseconds;
 static unsigned char scHundredMicroseconds1stByte;          // First Byte for Milliseconds 
 static unsigned char scHundredMicroseconds2ndByte;         // Second Byte for Milliseconds
@@ -133,8 +124,6 @@ static unsigned char scMaxThreshholdL;                  // Low BYTE value for Ma
 static unsigned char scMaxThreshholdH;
 static unsigned int  scADCValue[MAX_PACKET_SEQUENCE][MAX_DATA_SIZE]; 
 static unsigned char scabyResponseBuffer[MAX_PACKET_SIZE];
-//static unsigned char scADCH[MAX_PACKET_SEQUENCE][MAX_DATA_SIZE];
-//static unsigned char scADCL[MAX_PACKET_SEQUENCE][MAX_DATA_SIZE];
 static WORD scawCalibrationRunningAvgValues[10];
 static DWORD scdwHundredMicroSecondsADC;
 static DWORD scdwHundredMicroSecondsCalibration;
@@ -152,7 +141,6 @@ static void scAllocateRespondBuffer(BYTE PacketSequence);
 static void TimerInitiate (void);
 void _ISR _DefaultInterrupt(void);	// interrupt for Timer1, used for keeping time
 static void scCalibrateSensor(WORD wSensorChannel);
-
 /* This value indicates that the last command
    received from master was processed successfully */
 static BOOL scfSlaveStatus;
@@ -220,12 +208,11 @@ int main(void)
     RECEIVED_MESSAGE stReceivedMessage = (RECEIVED_MESSAGE) {0};
     SLAVE_STATES_E eSlaveStates = INACTIVE;
     ADC_STATES_E eADCStates = TIMER_INITIATE;
-    CALIBRATION_STATES_E eCalibrationStates = CALIBRATION_INIT;
     BYTE byDataCount ;
     BYTE byPacketSequence ;
-    BOOL CALIBRATION_FINISHED = FALSE ;
     TimerInitiate();
     scMainInit();
+    
     while (scdwHundredMicroSecondsCalibration<FIVE_SECONDS)
     {
          scCalibrateSensor(EXT_CHANNEL);
@@ -248,46 +235,6 @@ int main(void)
                         stReceivedMessage = (RECEIVED_MESSAGE) {0};
                     }
                 }
-//                else 
-//                {
-//					if (CALIBRATION_FINISHED == FALSE)
-//					{
-//                    eSlaveStates = SENSOR_CALIBRATION;
-//					}					
-//                }
-                break;
-                
-                case SENSOR_CALIBRATION:
-                switch (eCalibrationStates)
-                {
-                    case CALIBRATION_INIT:
-                        // Reset calibration timer
-                        scdwHundredMicroSecondsCalibration = 0;
-                        eCalibrationStates = CALIBRATE;
-                        break;
-                        
-                    case CALIBRATE:
-                        // Calibrate for 5 seconds
-                        if (scdwHundredMicroSecondsCalibration < FIVE_SECONDS)
-                        {
-                            scCalibrateSensor(EXT_CHANNEL);
-                        }
-                        else
-                        {
-                            eCalibrationStates = CALIBRATION_DONE;
-                        }
-                        break;
-                        
-                    case CALIBRATION_DONE:
-                        CALIBRATION_FINISHED = TRUE;
-                        eSlaveStates = INACTIVE;
-                        break;
-                        
-                    default:
-                        // We should never get here
-                        eCalibrationStates = CALIBRATION_INIT;
-                        break;
-                }
                 break;
                 
             case ADC_CALC:
@@ -300,14 +247,10 @@ int main(void)
                     case ADC_INITIATE:
                         scADCValue[0][0]=scADCRead(EXT_CHANNEL);           
                         scADCStartTime = scHundredMicroseconds;            // ADC Start recording time 
-                        if(scADCValue[0][0]>TEST_MAX)               // For test purpose only, the real variable is scMaxThreshhold
+                        if(scADCValue[0][0]>=scwCalibrationMaxThreshold)               // For test purpose only, the real variable is scMaxThreshhold
                             {
                                eADCStates = ADC_MEASURING;
                             }
-//                        else if(scHundredMicroseconds>600000)             // when the time is bigger than 60 seconds
-//                            {
-//                                eSlaveStates = INACTIVE;                // Time out if wait longer than 60 seconds
-//                            }
                         break;
                     case ADC_MEASURING:
                         for(byPacketSequence = 0;byPacketSequence<MAX_PACKET_SEQUENCE;byPacketSequence++)
@@ -323,6 +266,7 @@ int main(void)
                         break;
                 }        
                 break;
+                
             case SLAVE_RES: //TODO: more work needed to make generic
                 scAllocateRespondBuffer(stReceivedMessage.Payload[SEQUENCE_INDEX]);
                 DelayMs(100);
@@ -453,13 +397,13 @@ static unsigned int scADCRead(WORD wADCChannel)
 //#if 0
     AD1CHS = wADCChannel;           // set channel to measure 
     AD1CON1bits.ADON = 1;        // turn ADC on for taking readings
-//    for (wI = 0; wI < 100; wI++);
     AD1CON1bits.SAMP = 1;       // start sampling
     while (!AD1CON1bits.DONE);  // wait for ADC to complete
     LOCAL_ADCVal = ADC1BUF0;
     AD1CON1bits.ADON = 0;       // turn ADC off for before taking next reading
     SPI1STAT = 0x8000;  // Enable SPI bus to talk radio
 //    LOCAL_ADCVal = SAMPLE_ADC_VALUE;          
+    for(wI = 0; wI < 150; wI++)                                     // delay around 100 us
     return LOCAL_ADCVal;
 }
 
@@ -478,23 +422,12 @@ DATE             NAME               REVISION COMMENT
 *----------------------------------------------------------------------------*/
 static void scSpiltData(void)
 {
-    BYTE bySpiltDataCount;
-    BYTE byPacketSequence;
     scMaxThreshholdH = scwCalibrationMaxThreshold>>8;
     scMaxThreshholdL = scwCalibrationMaxThreshold;
-//    scHundredMicroseconds1stByte=scADCStartTime>>24;
-//    scHundredMicroseconds2ndByte=scADCStartTime>>16;
-//    scHundredMicroseconds3rdByte=scADCStartTime>>8;
-//    scHundredMicroseconds4thByte=scADCStartTime;
-//    for (byPacketSequence=0;byPacketSequence< MAX_PACKET_SEQUENCE;byPacketSequence++)
-//    {
-//        for (bySpiltDataCount=0;bySpiltDataCount< MAX_DATA_SIZE;bySpiltDataCount++)
-//        {
-//            scADCL[byPacketSequence][bySpiltDataCount] = scADCValue[byPacketSequence][bySpiltDataCount]-400;
-////            scADCL[byPacketSequence][bySpiltDataCount] = scADCValue[byPacketSequence][bySpiltDataCount]; 
-//        }
-//    }
-   
+    scHundredMicroseconds1stByte=scADCStartTime>>24;
+    scHundredMicroseconds2ndByte=scADCStartTime>>16;
+    scHundredMicroseconds3rdByte=scADCStartTime>>8;
+    scHundredMicroseconds4thByte=scADCStartTime; 
 }
 
 
@@ -517,16 +450,24 @@ static void scAllocateRespondBuffer(BYTE PacketSequence)
     scabyResponseBuffer[SLAVE_ID_INDEX] = UNIQUE_SLAVE;
     scabyResponseBuffer[COMMAND_INDEX] = (BYTE)scfSlaveStatus;
     scabyResponseBuffer[SEQUENCE_INDEX] = PacketSequence;
-//    scabyResponseBuffer[TIME_1_BYTE] = scHundredMicroseconds1stByte;
-//    scabyResponseBuffer[TIME_2_BYTE] = scHundredMicroseconds2ndByte;
-//    scabyResponseBuffer[TIME_3_BYTE] = scHundredMicroseconds3rdByte;
-//    scabyResponseBuffer[TIME_4_BYTE] = scHundredMicroseconds4thByte;
+    scabyResponseBuffer[TIME_1_BYTE] = scHundredMicroseconds1stByte;
+    scabyResponseBuffer[TIME_2_BYTE] = scHundredMicroseconds2ndByte;
+    scabyResponseBuffer[TIME_3_BYTE] = scHundredMicroseconds3rdByte;
+    scabyResponseBuffer[TIME_4_BYTE] = scHundredMicroseconds4thByte;
     scabyResponseBuffer[MAX_VALUE_HIGH_BYTE] = scMaxThreshholdH;
     scabyResponseBuffer[MAX_VALUE_LOW_BYTE] = scMaxThreshholdL;
+    
     for (DataCount=0;DataCount< MAX_DATA_SIZE;DataCount++)
         {
-//            scabyResponseBuffer[2*DataCount+HEADERCOOMANDSIZE+TIMEHEADERSIZE+THRESHHOLDVALUEHEADER] = scADCH[PacketSequence][DataCount];
-            scabyResponseBuffer[DataCount+HEADERCOOMANDSIZE+TIMEHEADERSIZE+THRESHHOLDVALUEHEADER+1] = scADCValue[PacketSequence][DataCount]-400;
+            if (scADCValue[PacketSequence][DataCount]>=scwCalibrationRunningAvg)
+            {
+                scabyResponseBuffer[DataCount+HEADERCOOMANDSIZE+TIMEHEADERSIZE+THRESHHOLDVALUEHEADER] = scADCValue[PacketSequence][DataCount]-scwCalibrationRunningAvg;
+            }
+            else
+            {
+                
+                scabyResponseBuffer[DataCount+HEADERCOOMANDSIZE+TIMEHEADERSIZE+THRESHHOLDVALUEHEADER] = 0;
+            }            
         } 
 }
 

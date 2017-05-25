@@ -50,7 +50,7 @@
 #define CODE_VERSION                15
 #define MAX_PACKET_SEQUENCE         4       
 #define MAX_DATA_SIZE               75          // Max data packet= (MAX_PACKET_SIZE-HEADERCOOMANDSIZE)/2
-#define ADC_CALC_MAX_TIME_MS        300
+#define ADC_CALC_MAX_TIME_MS        100
 #define FIVE_SECONDS                5000
 #define RX_TIME                     2
 #define HEADERCOOMANDSIZE           3
@@ -108,32 +108,26 @@ typedef enum
 } SLAVE_RES_STATES_E;
 
 /* -- STATIC AND GLOBAL VARIABLES -- */
-
+ static char str[100];
  static const BYTE kabySlaves[] = { SLAVE_0_ID, SLAVE_1_ID };
  static unsigned int  ADCValue[MAX_PACKET_SEQUENCE][MAX_DATA_SIZE] ;
-// static BYTE ADCHighValue[MAX_PACKET_SEQUENCE][MAX_DATA_SIZE] ;
-//  static BYTE ADCLowValue[MAX_PACKET_SEQUENCE][MAX_DATA_SIZE] ;
  static unsigned int  MaxThreshouldValue;                     // Max threshhold value received 
  static BYTE MaxThreshouldValueHighByte;
  static BYTE MaxThreshouldValueLowByte;
  static unsigned long TotalHundredMicroseconds; 
- static BYTE MissingPacketSequence;
  static BYTE byHundredMicroseconds1stByte;                 // First Byte for Milliseconds 
  static BYTE byHundredMicroseconds2ndByte;                // Second Byte for Milliseconds
  static BYTE byHundredMicroseconds3rdByte;               //  Third Byte for Milliseconds
  static BYTE byHundredMicroseconds4thByte;              //  Fourth Byte for Milliseconds
- static BYTE byCheckSum[MAX_PACKET_SEQUENCE] ={0};      // this CheckSum is an array, the value could only be 1 or 0, 1 means received, 0 means haven't received 
 /* -- STATIC FUNCTION PROTOTYPES -- */
 static void scMainInit(void);
 static void scTransmit(BYTE *pbyTxBuffer, BYTE byLength);
-static void scClearCheckSum(void);
 static BOOL scfReceive(RECEIVED_MESSAGE *stReceiveMessageBuffer);
 static void scDoGlobalADCRequest(void);
 static void scReqSlaveStatus(const BYTE kbySlaveID, BYTE byPacketSequence);
-static void scReqMissingPack(const BYTE kbySkaveID, BYTE byMissPacketSequence);
 static void scPrintConsole(BYTE bySlaveID,BYTE PacketSequence);
 static void scCollectandSortMessage(BYTE PacketSequence,RECEIVED_MESSAGE stReceivedMessageBuffer);
-static BOOL scMessageFullyReceive(void);
+
 
 /*----------------------------------------------------------------------------
 @Description: The  Application main entry point initialization
@@ -164,7 +158,7 @@ static void scMainInit(void)
     LED_2 = 1;
     
     // Initial Startup Display
-    ConsolePutROMString((ROM char*)"\r\nNDSU ECE 209 Ruisi ");
+    ConsolePutROMString((ROM char*)"\r\nNDSU ECE 209 Ruisi Modified  ");
     ConsolePutROMString((ROM char*)"\r\n Wireless sensor network ");
     ConsolePutROMString((ROM char*)"\r\nVersion ");
     ConsolePut((CODE_VERSION / 10) % 10 + '0');
@@ -224,7 +218,6 @@ int main(void)
     BYTE byPacketSequence = 0;
     RECEIVED_MESSAGE stReceivedMessage = (RECEIVED_MESSAGE) {0};
     MASTER_STATES_E eMasterStates = INACTIVE;   
-    REQUEST_RESPOND_STATES_E eRequestRespondStates = REQ_FULL_MESSAGE;
     scMainInit();
     while(TRUE)
     {
@@ -240,7 +233,6 @@ int main(void)
                 break;
                         
             case REQ_ADC_CALC:       
-//               DelayMs(FIVE_SECONDS);       //Allow the end device to CALIBRATE
                scDoGlobalADCRequest();
                DelayMs(ADC_CALC_MAX_TIME_MS);   
                eMasterStates = REQ_SLAVE_RES;
@@ -263,9 +255,7 @@ int main(void)
                                                 eMasterStates = REQ_ADC_CALC;
                                                 break;
 
-                                            case SLAVE_ACKNOWLEDGE:                                    
-//                                                ConsolePutROMString((ROM char *)"SLAVE_ACKNOWLEDGE\r\n"); 
-                                                byCheckSum[stReceivedMessage.Payload[SEQUENCE_INDEX]]=1;          // Fill in the CheckSum Array 
+                                            case SLAVE_ACKNOWLEDGE:                                                                                
                                                 scCollectandSortMessage(stReceivedMessage.Payload[SEQUENCE_INDEX],stReceivedMessage);  
                                                 scPrintConsole(bySlaveIndex,byPacketSequence);
                                                 break;
@@ -352,7 +342,6 @@ static BOOL scfReceive(RECEIVED_MESSAGE * stReceiveMessageBuffer)
         }
         DelayMs(RX_TIME);
     }
-
     return (byTimeout > 0);
 }
 
@@ -415,42 +404,16 @@ static void scCollectandSortMessage(BYTE PacketSequence,RECEIVED_MESSAGE stRecei
     MaxThreshouldValueHighByte = stReceivedMessageBuffer.Payload[MAX_VALUE_HIGH_BYTE];
     MaxThreshouldValueLowByte=stReceivedMessageBuffer.Payload[MAX_VALUE_LOW_BYTE];
     MaxThreshouldValue= ((unsigned int)MaxThreshouldValueHighByte<<8) + MaxThreshouldValueLowByte;
-    MaxThreshouldValue= MaxThreshouldValue -400;
     TotalHundredMicroseconds = ((unsigned long)byHundredMicroseconds1stByte<<24)+((unsigned long)byHundredMicroseconds2ndByte<<16)+((unsigned int)byHundredMicroseconds3rdByte<<8)+byHundredMicroseconds4thByte;
     
     for (byDataCount=0; byDataCount<MAX_DATA_SIZE;byDataCount++)
         {
-//            ADCHighValue[PacketSequence][byDataCount] = stReceivedMessageBuffer.Payload[2*byDataCount+HEADERCOOMANDSIZE+TIMEHEADERSIZE+THRESHHOLDVALUEHEADER];
-//             stReceivedMessageBuffer.Payload[byDataCount+HEADERCOOMANDSIZE+TIMEHEADERSIZE+THRESHHOLDVALUEHEADER];
+
             ADCValue[PacketSequence][byDataCount] = stReceivedMessageBuffer.Payload[byDataCount+HEADERCOOMANDSIZE+TIMEHEADERSIZE+THRESHHOLDVALUEHEADER];
-//                    ((unsigned int)ADCHighValue[PacketSequence][byDataCount]<<8)+ ADCLowValue[PacketSequence][byDataCount];
-//            ADCValue[PacketSequence][byDataCount]=stReceivedMessageBuffer.Payload[2*byDataCount+HEADERCOOMANDSIZE+TIMEHEADERSIZE+THRESHHOLDVALUEHEADER+1]; // this only receive the lower 8 BYTE of the ADC value, the Max is 300 mv  
+ 
         }  
 }
 
-static void scClearCheckSum(void)
-{
-    BYTE byPacketNumber;
-    for(byPacketNumber=0; byPacketNumber< MAX_PACKET_SEQUENCE;byPacketNumber++)
-        {
-            byCheckSum[byPacketNumber] = 0;
-        }                                         // Whenever start in th REQ_ADC_CALC case, initiate the checksum array
-}
-
-static BOOL scMessageFullyReceive(void)
-{
-    BYTE byPacketSequence;
-    BOOL MessageFullyReceive= TRUE;
-    for (byPacketSequence=0;byPacketSequence<MAX_PACKET_SEQUENCE;byPacketSequence++)
-    {
-        if (byCheckSum[byPacketSequence]==0)
-        {
-            MessageFullyReceive = FALSE;
-            MissingPacketSequence=byPacketSequence;
-        }
-    }
-    return MessageFullyReceive;
-}
 
 /*----------------------------------------------------------------------------
  
@@ -468,26 +431,25 @@ DATE             NAME               REVISION COMMENT
 *----------------------------------------------------------------------------*/
 static void scPrintConsole(BYTE bySlaveID,BYTE PacketSequence )
 {   
-    BYTE byDataCount;
-    char str[100];
-    ConsolePutROMString((ROM char*)"\r\nNode ");   
-    ConsolePut(bySlaveID % 10 + '0');
-    ConsolePutROMString((ROM char*)" | ");
-    ConsolePutROMString((ROM char*)"Sequence ");
-    ConsolePut(PacketSequence % 10 + '0');
-    ConsolePutROMString((ROM char*)" | ");
-    ConsolePutROMString((ROM char*)"Start Time ");
-    sprintf(str,"%lu",TotalHundredMicroseconds);
-    ConsolePutROMString((ROM char*)str);
-    ConsolePutROMString((ROM char*)" | ");
-    ConsolePutROMString((ROM char*)"threshold value ");
-    sprintf(str, "%d", MaxThreshouldValue );
-    ConsolePutROMString((ROM char*)str);
-    ConsolePutROMString((ROM char*)" | ADC | ");    
+    BYTE byDataCount;   
+//    ConsolePutROMString((ROM char*)"\r\nNode ");   
+//    ConsolePut(bySlaveID % 10 + '0');
+//    ConsolePutROMString((ROM char*)" | ");
+//    ConsolePutROMString((ROM char*)"Sequence ");
+//    ConsolePut(PacketSequence % 10 + '0');
+//    ConsolePutROMString((ROM char*)" | ");
+//    ConsolePutROMString((ROM char*)"Start Time ");
+//    sprintf(str,"%lu",TotalHundredMicroseconds);
+//    ConsolePutROMString((ROM char*)str);
+//    ConsolePutROMString((ROM char*)" | ");
+//    ConsolePutROMString((ROM char*)"threshold value ");
+//    sprintf(str, "%d", MaxThreshouldValue );
+//    ConsolePutROMString((ROM char*)str);
+//    ConsolePutROMString((ROM char*)" | ADC | ");    
     for (byDataCount =0;byDataCount<MAX_DATA_SIZE;byDataCount++)
     {   
         sprintf(str, "%d", ADCValue[PacketSequence][byDataCount]);
         ConsolePutROMString((ROM char*)str); 
-        ConsolePutROMString((ROM char*)" | ");
+        ConsolePutROMString((ROM char*)",");
     }        
 }
