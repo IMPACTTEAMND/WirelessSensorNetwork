@@ -57,8 +57,9 @@
 #define RX_TIME 2
 #define SAMPLE_ADC_VALUE 8
 #define MAX_PACKET_SIZE 100
-#define TOTAL_RESPONSE_BUFFERS 5
+#define TOTAL_RESPONSE_BUFFERS 8
 #define UNDEFINED 0
+#define TRANSMIT_DELAY 300
 
 // Timer 1 values
 //#define HUNDRED_USEC 0xFFCD
@@ -77,8 +78,6 @@
 #endif
 
 #define TIME_TO_MEASURE_ADC FIVE_SEC
-/* Uncomment for debugging */
-//#define DEBUG
 
 
 enum
@@ -90,7 +89,7 @@ enum
     GLOBAL_ID = 0xFF
 };
 //TODO: EDIT THIS FOR UNIQUE SLAVE DEVICE
-#define UNIQUE_SLAVE SLAVE_0_ID
+#define UNIQUE_SLAVE SLAVE_1_ID
 
 
 typedef enum
@@ -104,6 +103,8 @@ enum
 {
     SLAVE_ID_INDEX,
     COMMAND_INDEX,
+    MAX_THRESHOLD_INDEX,
+    BUFFER_INDEX,
     ADC_VALUE_INDEX
 };
 
@@ -121,7 +122,6 @@ typedef enum
     SLAVE_NO_ACKNOWLEDGE,
     SLAVE_ACKNOWLEDGE
 } SLAVE_RES_STATES_E;
-
 
 
 /* -- STATIC AND GLOBAL VARIABLES -- */
@@ -243,6 +243,8 @@ int main(void)
 
     while(TRUE)
     {
+        P2PTasks();
+        
         switch(eSlaveStates)
         {
             case INACTIVE:
@@ -277,6 +279,8 @@ int main(void)
                 {
                     scaabyResponseBuffer[SLAVE_ID_INDEX][byI] = UNIQUE_SLAVE;
                     scaabyResponseBuffer[COMMAND_INDEX][byI] = (BYTE)scfSlaveStatus;
+                    scaabyResponseBuffer[MAX_THRESHOLD_INDEX][byI] = (BYTE)(scwCalibrationMaxThreshold >> 1);
+                    scaabyResponseBuffer[BUFFER_INDEX][byI] = byI;
                 }
                 if (scfSlaveStatus == SLAVE_ACKNOWLEDGE)
                 {
@@ -284,7 +288,7 @@ int main(void)
                 }
                 else
                 {
-                    scTransmit(2, 1, scaabyResponseBuffer);
+                    scTransmit(MAX_THRESHOLD_INDEX, TOTAL_RESPONSE_BUFFERS, scaabyResponseBuffer);
                 }
                 eSlaveStates = INACTIVE;
                 break;
@@ -330,14 +334,21 @@ static BOOL scfDoReadADC(WORD wSensorChannel)
         wADCValue = scwADCRead(wSensorChannel);
 
         // As soon a the max threshold is exceeded, take ADC samples of size MAX_PACKET_SIZE*TOTAL_RESPONSE_BUFFERS
-        if (wADCValue > scwCalibrationMaxThreshold)
+        //if (wADCValue > scwCalibrationMaxThreshold)
         {
+            fRetVal = TRUE;
             while (wPacketIndex < MAX_PACKET_SIZE)
             {
-                scaabyResponseBuffer[wPacketIndex][byBuffers] = (BYTE)((wADCValue - scwCalibrationRunningAvg) >> 1);
-                wPacketIndex++;
                 wADCValue = scwADCRead(wSensorChannel);
-
+                if (wADCValue > scwCalibrationRunningAvg)
+                {
+                    scaabyResponseBuffer[wPacketIndex][byBuffers] = (BYTE)((wADCValue - scwCalibrationRunningAvg) >> 1);
+                }
+                else
+                {
+                    scaabyResponseBuffer[wPacketIndex][byBuffers] = 0;
+                }
+                wPacketIndex++;
                 if ((wPacketIndex == MAX_PACKET_SIZE) && (byBuffers < TOTAL_RESPONSE_BUFFERS))
                 {
                     wPacketIndex = ADC_VALUE_INDEX;
@@ -347,8 +358,6 @@ static BOOL scfDoReadADC(WORD wSensorChannel)
             break;
         }
     }
-
-    fRetVal = (gdwADCTicks < TIME_TO_MEASURE_ADC);
 
     return fRetVal;
 }
@@ -476,11 +485,11 @@ static void scTransmit(BYTE byLength, BYTE byBuffers, BYTE aabyTxBuffer[][byBuff
     BYTE byI;
     BYTE byJ;
 
-    // Clear the transmit buffer
-    MiApp_FlushTx();
-
     for (byJ = 0; byJ < byBuffers; byJ++)
     {
+        // Clear the transmit buffer
+        MiApp_FlushTx();
+        
         // Write new frame to transmit buffer
         for (byI = 0; byI < byLength; byI++)
         {
@@ -490,7 +499,7 @@ static void scTransmit(BYTE byLength, BYTE byBuffers, BYTE aabyTxBuffer[][byBuff
         // Broadcast packet from transmit buffer
         MiApp_BroadcastPacket(FALSE);
 
-        DelayMs(100);
+        DelayMs(TRANSMIT_DELAY);
     }
 }
 

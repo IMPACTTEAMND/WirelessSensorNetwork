@@ -53,14 +53,15 @@
 #define CODE_VERSION 12
 
 #define ADC_CALC_MAX_TIME_MS 200
-#define RX_TIME 2
+#define RX_TIME 5
 #define DEBUG
 #define FIVE_SECONDS 5000
+#define SIX_SECONDS 6000
 #define THIRTY_SECONDS 30000
 #define MAX_PACKET_SIZE 100
 #define BUTTON_ONE 1
 #define BUTTON_TWO 2
-#define TOTAL_RESPONSE_BUFFERS 5
+#define TOTAL_RESPONSE_BUFFERS 8
 
 enum
 {
@@ -74,7 +75,7 @@ enum
 enum
 {
     READ_ADC_CMD,
-    REQ_STATUS_CMD,
+    REQ_STATUS_CMD
 };
 
 
@@ -82,6 +83,8 @@ enum
 {
     SLAVE_ID_INDEX,
     COMMAND_INDEX,
+    MAX_THRESHOLD_INDEX,
+    BUFFER_INDEX,
     ADC_VALUE_INDEX
 };
 
@@ -102,13 +105,16 @@ typedef enum
 /* -- STATIC AND GLOBAL VARIABLES -- */
 static const BYTE kabySlaves[] = { SLAVE_0_ID, SLAVE_1_ID };
 
+// Used for console
+static char charBuffer[100];
+
 /* -- STATIC FUNCTION PROTOTYPES -- */
 static void scMainInit(void);
 static void scTransmit(BYTE *pbyTxBuffer, BYTE byLength);
 static BOOL scfReceive(RECEIVED_MESSAGE *stReceiveMessageBuffer);
 static void scDoGlobalADCRequest(void);
 static void scReqSlaveStatus(const BYTE kbySlaveID);
-static void scPrintADCValuesToConsole(BYTE bySlaveID, BYTE * byADCValues);
+static void scPrintPacketToConsole(BYTE * byPacket, BYTE byLength);
 
 
 /*----------------------------------------------------------------------------
@@ -198,25 +204,22 @@ DATE             NAME               REVISION COMMENT
 int main(void)
 {
     BYTE bySlaveIndex = 0;
-    BYTE bySlaveRequestCount = 0;
     RECEIVED_MESSAGE stReceivedMessage = (RECEIVED_MESSAGE) {0};
     MASTER_STATES_E eMasterStates = INACTIVE;
-    BYTE byADCVal[MAX_PACKET_SIZE];
-    BYTE byIndex;
     BYTE byI;
-
+    
     scMainInit();
 
     while(TRUE)
     {
+        P2PTasks();
+        
         switch(eMasterStates)
         {
             case INACTIVE:
                 // Turn OFF LED 1 and 2 to indicate inactive
                 LED_1 = 1;
                 LED_2 = 1;
-                bySlaveIndex = 0;
-                bySlaveRequestCount = 0;
                 if (ButtonPressed() == BUTTON_ONE)
                 {
                     // Turn ON LED 1 to indicate ADC READ
@@ -236,12 +239,12 @@ int main(void)
 ConsolePutROMString((ROM char *)"REQ_READ_ADC\r\n");
 #endif /* ifndef DEBUG */
                // Time slave takes to calibrate
-               DelayMs(FIVE_SECONDS);
+               //DelayMs(FIVE_SECONDS);
 
                scDoGlobalADCRequest();
 
                // Max time slave takes to read ADC
-               DelayMs(FIVE_SECONDS);
+               DelayMs(SIX_SECONDS);
 
                eMasterStates = REQ_SLAVE_RES;
                break;
@@ -251,17 +254,13 @@ case REQ_SLAVE_RES:
 ConsolePutROMString((ROM char *)"REQ_SLAVE_RES\r\n");
 #endif /* ifndef DEBUG */
 
-                while (bySlaveIndex < sizeof(kabySlaves))
+                for(bySlaveIndex = 0; bySlaveIndex < sizeof(kabySlaves); bySlaveIndex++)
                 {
                     scReqSlaveStatus(kabySlaves[bySlaveIndex]);
-
+                                            
                     // Rx 5 packets from each slave
                     for (byI = 0; byI < TOTAL_RESPONSE_BUFFERS; byI++)
-                    {
-#ifdef DEBUG
-ConsolePut(byI % 10 + '0');
-ConsolePutROMString((ROM char *)"  packet waiting\r\n");
-#endif /* ifndef DEBUG */
+                    {                        
                         if (scfReceive(&stReceivedMessage))
                         {
                             if (stReceivedMessage.Payload[SLAVE_ID_INDEX] == bySlaveIndex)
@@ -270,15 +269,11 @@ ConsolePutROMString((ROM char *)"  packet waiting\r\n");
                                 {
                                     case SLAVE_NO_ACKNOWLEDGE:
                                         ConsolePutROMString((ROM char *)"SLAVE_NO_ACKNOWLEDGE\r\n");
+                                        scPrintPacketToConsole(stReceivedMessage.Payload, ADC_VALUE_INDEX);
                                         break;
 
                                     case SLAVE_ACKNOWLEDGE:
-                                        ConsolePutROMString((ROM char *)"SLAVE_ACKNOWLEDGE\r\n");
-                                        for (byIndex = 0; byIndex < MAX_PACKET_SIZE-2; byIndex++)
-                                        {
-                                            byADCVal[byIndex] = stReceivedMessage.Payload[byIndex + ADC_VALUE_INDEX];
-                                        }
-                                        scPrintADCValuesToConsole(bySlaveIndex, byADCVal);
+                                        scPrintPacketToConsole(stReceivedMessage.Payload, MAX_PACKET_SIZE);
                                         break;
 
                                     default:
@@ -291,31 +286,20 @@ ConsolePutROMString((ROM char *)"ERROR CASE: COMMAND_INDEX invalid\r\n");
                             else
                             {
 #ifdef DEBUG
-ConsolePut(bySlaveIndex % 10 + '0');
-ConsolePutROMString((ROM char *)" ERROR CASE: Invalid Slave ID\r\n");
+sprintf(charBuffer, "ERROR CASE: Invalid slave ID - Expected: %d | Received: %d\r\n\0", bySlaveIndex, stReceivedMessage.Payload[SLAVE_ID_INDEX]);
+ConsolePutROMString((ROM char*)charBuffer);
 #endif /* ifndef DEBUG */
                             }
                         }
                         else
                         {
 #ifdef DEBUG
-ConsolePutROMString((ROM char *)"ERROR CASE: Timed out waiting for slave response\r\n");
-#endif /* ifndef DEBUG */
-                            // Request again, upto 5 times
-                            if (bySlaveRequestCount < 5)
-                            {
-                                // Increment slave request count
-                                bySlaveRequestCount++;
-
-                                // Delay 1s before re-request
-                                DelayMs(1000);
-                                scReqSlaveStatus(kabySlaves[bySlaveIndex]);
-                            }
+sprintf(charBuffer, "ERROR CASE: Timeout waiting for Packet %d from Node %d\r\n\0", byI, bySlaveIndex);
+ConsolePutROMString((ROM char*)charBuffer);
+#endif /* ifndef DEBUG */                   
                         }
                     }
-                    // Reset the slave request count
-                    bySlaveRequestCount = 0;
-                    bySlaveIndex++;
+                    Delay(100);
                 }
                 eMasterStates = INACTIVE;
                 break;
@@ -469,12 +453,14 @@ ConsolePutROMString((ROM char *)" Node scReqSlaveStatus\r\n");
 
 /*----------------------------------------------------------------------------
 
-@Prototype: static void scPrintADCValuesToConsole(BYTE bySlaveID, BYTE * byADCValues);
+@Prototype: static void scPrintPacketToConsole(BYTE * byPacket, BYTE byLength)
 
 @Description: Pretty print some information to console
 
 @Parameters: BYTE bySlaveID
+             BYTE byMaxThreshold
              BYTE * byADCValues
+             BYTE byLength
 
 @Returns: void
 
@@ -483,22 +469,23 @@ DATE             NAME               REVISION COMMENT
 04/07/2017       Ali Haidous        Initial Revision
 
 *----------------------------------------------------------------------------*/
-static void scPrintADCValuesToConsole(BYTE bySlaveID, BYTE * byADCValues)
+static void scPrintPacketToConsole(BYTE * byPacket, BYTE byLength)
 {
-    char str[100];
     BYTE byIndex;
 
-    ConsolePutROMString((ROM char*)"Node: ");
-    ConsolePut(bySlaveID % 10 + '0');
-    ConsolePutROMString((ROM char*)" | ");
-    ConsolePutROMString((ROM char*)"Values: ");
+    sprintf(charBuffer,
+            "Slave:%d | Command:%d | Threshold:%d | Buffer:%d | Values: \0",
+            byPacket[SLAVE_ID_INDEX],
+            byPacket[COMMAND_INDEX],
+            byPacket[MAX_THRESHOLD_INDEX],
+            byPacket[BUFFER_INDEX]);
+    
+    ConsolePutROMString((ROM char*)charBuffer);
 
-    for (byIndex = 0; byIndex < MAX_PACKET_SIZE-2; byIndex++)
+    for (byIndex = ADC_VALUE_INDEX; byIndex < byLength; byIndex++)
     {
-        sprintf(str, "%d", (byADCValues[byIndex] << 1));
-        ConsolePutROMString((ROM char*)str);
-        ConsolePutROMString((ROM char*)" | ");
+        sprintf(charBuffer, "%d | \0", (byPacket[byIndex] << 1));
+        ConsolePutROMString((ROM char*)charBuffer);
     }
     ConsolePutROMString((ROM char*)"\r\n");
 }
-
