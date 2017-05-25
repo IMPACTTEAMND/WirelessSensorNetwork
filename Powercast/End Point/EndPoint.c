@@ -334,7 +334,7 @@ static BOOL scfDoReadADC(WORD wSensorChannel)
         wADCValue = scwADCRead(wSensorChannel);
 
         // As soon a the max threshold is exceeded, take ADC samples of size MAX_PACKET_SIZE*TOTAL_RESPONSE_BUFFERS
-        //if (wADCValue > scwCalibrationMaxThreshold)
+        if (wADCValue > scwCalibrationMaxThreshold)
         {
             fRetVal = TRUE;
             while (wPacketIndex < MAX_PACKET_SIZE)

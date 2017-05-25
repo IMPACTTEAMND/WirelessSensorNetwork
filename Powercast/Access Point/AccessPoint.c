@@ -43,6 +43,9 @@
 #include "WirelessProtocols\MCHP_API.h"
 #include <math.h>
 
+//#define SINGULAR_MODE
+#define CONTINUOUS_MODE
+
 /* -- DEFINES and ENUMS -- */
 #define VBG_VAL         1228800UL   // VBG = 1.2V, VBG_VAL = 1200 mV * 1024 counts
 #define T_BIAS          10000.0     // Bias res for temp sensor
@@ -299,9 +302,15 @@ ConsolePutROMString((ROM char*)charBuffer);
 #endif /* ifndef DEBUG */                   
                         }
                     }
-                    Delay(100);
+                    DelayMs(100);
                 }
+#ifdef SINGULAR_MODE
                 eMasterStates = INACTIVE;
+#elif CONTINUOUS_MODE
+                eMasterStates = REQ_READ_ADC;
+#else
+    #error define SINGULAR_MODE or CONTINUOUS_MODE
+#endif
                 break;
 
             default:
@@ -380,7 +389,7 @@ static BOOL scfReceive(RECEIVED_MESSAGE * stReceiveMessageBuffer)
         byTimeout--;
         if (MiApp_MessageAvailable())
         {
- #ifdef DEBUG
+#ifdef DEBUG
 ConsolePutROMString((ROM char *)"Rx>>>>\r\n");
 #endif /* ifndef DEBUG */
 
