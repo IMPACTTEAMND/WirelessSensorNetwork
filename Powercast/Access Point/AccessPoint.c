@@ -41,7 +41,20 @@ volatile DWORD gdwRxTicks;
 volatile DWORD gdwADCTicks;
 
 /* -- STATIC VARIABLES -- */
-static const BYTE kabySlaves[] = { SLAVE_0_ID, SLAVE_1_ID, SLAVE_2_ID };
+static const BYTE kabySlaves[] = 
+{ 
+    SLAVE_0_ID, 
+    SLAVE_1_ID, 
+    SLAVE_2_ID,
+    SLAVE_3_ID,
+    SLAVE_4_ID,
+    SLAVE_5_ID,
+    SLAVE_6_ID,
+    SLAVE_7_ID,
+    SLAVE_8_ID,
+    SLAVE_9_ID,
+    SLAVE_10_ID
+};
 
 // Used for console
 static char charBuffer[100];
@@ -412,7 +425,7 @@ static void scReqSlaveADCBuffers()
     BYTE byBufferIndex;
     BYTE bySlaveIndex;
 
-    for(bySlaveIndex = 0; bySlaveIndex < sizeof(kabySlaves); bySlaveIndex++)
+    for(bySlaveIndex = 0; bySlaveIndex < NUMBER_OF_SLAVES; bySlaveIndex++)
     {
         for (byBufferIndex = 0; byBufferIndex < TOTAL_RESPONSE_BUFFERS; byBufferIndex++)
         {
@@ -507,6 +520,7 @@ static void scPrintPacketToConsole(BYTE * byPacket, BYTE byLength)
 {
     BYTE byIndex;
 
+    #ifdef DEBUG
     sprintf(charBuffer,
             "Slave:%d Buffer:%d Command:%d Threshold:%d Average:%d Values: ",
             byPacket[SLAVE_ID_INDEX],
@@ -514,14 +528,14 @@ static void scPrintPacketToConsole(BYTE * byPacket, BYTE byLength)
             byPacket[COMMAND_INDEX],
             byPacket[MAX_THRESHOLD_INDEX],
             byPacket[AVERAGE_INDEX]);
-
     ConsolePutROMString((ROM char*)charBuffer);
-
+    #endif 
+    
     for (byIndex = ADC_VALUE_INDEX; byIndex < byLength; byIndex++)
     {
-        sprintf(charBuffer, "%d ", (byPacket[byIndex] << 1));
+        sprintf(charBuffer, "%d,", (byPacket[byIndex] << 1));
         ConsolePutROMString((ROM char*)charBuffer);
     }
-    ConsolePutROMString((ROM char*)"\r\n");
+    //ConsolePutROMString((ROM char*)"\r\n");
 }
 

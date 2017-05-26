@@ -46,15 +46,22 @@
 #endif
 
 /* Time defines */
-#define TIME_TO_MEASURE_ADC ONE_SEC
+#define TIME_TO_MEASURE_ADC FIVE_SEC
 
-
+#define NUMBER_OF_SLAVES 1
 enum
 {
     SLAVE_0_ID,
     SLAVE_1_ID,
     SLAVE_2_ID,
     SLAVE_3_ID,
+    SLAVE_4_ID,
+    SLAVE_5_ID,
+    SLAVE_6_ID,
+    SLAVE_7_ID,
+    SLAVE_8_ID,
+    SLAVE_9_ID,
+    SLAVE_10_ID,
     GLOBAL_ID = 0xFF
 };
 
