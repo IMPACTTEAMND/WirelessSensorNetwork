@@ -33,7 +33,7 @@
 /* -- DEFINES and ENUMS -- */
 
 /* Comment/Uncomment to enable/disable debug/*/
-#define DEBUG
+//#define DEBUG
 
 
 /* -- GLOBAL VARIABLES -- */

@@ -31,7 +31,7 @@
 
 /* -- DEFINES and ENUMS -- */
 //TODO: EDIT THIS FOR UNIQUE SLAVE DEVICE
-#define UNIQUE_SLAVE SLAVE_2_ID
+#define UNIQUE_SLAVE SLAVE_1_ID
 
 
 /* -- GLOBAL VARIABLES -- */
@@ -128,7 +128,7 @@ static void scMainInit(void)
     scTimerInterruptInit();
 
     SPI1STAT = 0x8000;  // Enable SPI bus to talk radio
-
+        
     /*******************************************************************/
     // Function MiApp_ProtocolInit initialize the protocol stack. The
     // only input parameter indicates if previous network configuration
@@ -192,13 +192,13 @@ int main(void)
     BYTE byBufferIndex;
 
     scMainInit();
-
+    
     gdwCalibrationTicks = 0;
-    while (gdwCalibrationTicks < FIVE_SEC)
+    while (gdwCalibrationTicks < ONE_SEC)
     {
         scCalibrateSensor(EXTERNAL_SENSOR_CHANNEL);
     }
-
+    
     while(TRUE)
     {
         /* This function maintains the operation of the stack
@@ -464,7 +464,6 @@ DATE             NAME               REVISION COMMENT
 *----------------------------------------------------------------------------*/
 static WORD scwADCRead(WORD wADCChannel)
 {
-    WORD wI = 0;
     WORD wADCVal = 0;
 
     SPI1STAT = 0x0000;  // Disable SPI bus to read ADC
