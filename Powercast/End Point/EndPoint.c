@@ -31,7 +31,7 @@
 
 /* -- DEFINES and ENUMS -- */
 //TODO: EDIT THIS FOR UNIQUE SLAVE DEVICE
-#define UNIQUE_SLAVE SLAVE_0_ID
+#define UNIQUE_SLAVE SLAVE_1_ID
 
 
 /* -- GLOBAL VARIABLES -- */
@@ -219,7 +219,7 @@ int main(void)
                 eSlaveCommand = INVALID_CMD;
                 break;
 
-            case REQ_BUFFER_CMD: //TODO: more work needed to make generic
+            case REQ_BUFFER_CMD:
                 byBufferIndex = stReceivedMessage.Payload[BUFFER_INDEX];
                 scaabyResponseBuffer[SLAVE_ID_INDEX][byBufferIndex] = UNIQUE_SLAVE;
                 scaabyResponseBuffer[STATUS_INDEX][byBufferIndex] = scbySlaveStatus;
@@ -297,14 +297,8 @@ static BOOL scfDoReadADC(WORD wSensorChannel)
             while (wPacketIndex < MAX_PACKET_SIZE)
             {
                 wADCValue = scwADCRead(wSensorChannel);
-                if (wADCValue > scwCalibrationRunningAvg)
-                {
-                    scaabyResponseBuffer[wPacketIndex][byBuffers] = (BYTE)((wADCValue - scwCalibrationRunningAvg) >> 1);
-                }
-                else
-                {
-                    scaabyResponseBuffer[wPacketIndex][byBuffers] = 0;
-                }
+                scaabyResponseBuffer[wPacketIndex][byBuffers] = (BYTE)((wADCValue) >> 1);
+
                 wPacketIndex++;
                 if ((wPacketIndex == MAX_PACKET_SIZE) && (byBuffers < TOTAL_RESPONSE_BUFFERS))
                 {

@@ -48,7 +48,7 @@
 /* Time defines */
 #define TIME_TO_MEASURE_ADC FIVE_SEC
 
-#define NUMBER_OF_SLAVES 1
+#define NUMBER_OF_SLAVES 2
 enum
 {
     SLAVE_0_ID,

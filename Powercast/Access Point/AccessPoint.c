@@ -33,7 +33,7 @@
 /* -- DEFINES and ENUMS -- */
 
 /* Comment/Uncomment to enable/disable debug/*/
-//#define DEBUG
+#define DEBUG
 
 
 /* -- GLOBAL VARIABLES -- */
@@ -536,6 +536,9 @@ static void scPrintPacketToConsole(BYTE * byPacket, BYTE byLength)
         sprintf(charBuffer, "%d,", (byPacket[byIndex] << 1));
         ConsolePutROMString((ROM char*)charBuffer);
     }
-    //ConsolePutROMString((ROM char*)"\r\n");
+    
+    #ifdef DEBUG
+    ConsolePutROMString((ROM char*)"\r\n");
+    #endif
 }
 
