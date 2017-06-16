@@ -181,6 +181,7 @@ typedef union
 
 
 /************************ EXTERNAL VARIABLES **********************/
+extern void P2PTasks();
 extern BYTE TxBuffer[];
 extern BYTE TxData;
 extern volatile P2P_STATUS P2PStatus;

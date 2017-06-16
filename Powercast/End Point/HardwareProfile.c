@@ -128,8 +128,6 @@ void BoardInit(void)
     // Setup SPI bus, but leave disabled for now
     #if defined(HARDWARE_SPI)
      	SPI1CON1 = 0b0000000100111110;
-     	SPI1STAT = 0x0000;
-//        SPI1STAT = 0x0800;
     #endif
 
 	
