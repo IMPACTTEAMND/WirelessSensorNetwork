@@ -33,7 +33,7 @@
 /* -- DEFINES and ENUMS -- */
 
 /* Comment/Uncomment to enable/disable debug/*/
-#define DEBUG
+//#define DEBUG
 
 
 /* -- GLOBAL VARIABLES -- */
@@ -427,6 +427,9 @@ static void scReqSlaveADCBuffers()
 
     for(bySlaveIndex = 0; bySlaveIndex < NUMBER_OF_SLAVES; bySlaveIndex++)
     {
+        sprintf(charBuffer, "SlaveID:%d\r\n",
+        bySlaveIndex);
+        ConsolePutROMString((ROM char*)charBuffer);
         for (byBufferIndex = 0; byBufferIndex < TOTAL_RESPONSE_BUFFERS; byBufferIndex++)
         {
             scReqSlaveBuffer(kabySlaves[bySlaveIndex], byBufferIndex);
@@ -440,7 +443,11 @@ static void scReqSlaveADCBuffers()
                         switch ((SLAVE_STATUS_E)stReceivedMessage.Payload[STATUS_INDEX])
                         {
                             case READ_ADC_FAILED:
-                                ConsolePutROMString((ROM char *)"Read ADC Failed\r\n");
+                                sprintf(charBuffer,
+                                        "Slave Status: Read ADC Failed - SlaveID:%d Buffer:%d\r\n",
+                                         bySlaveIndex,
+                                         byBufferIndex);
+                                ConsolePutROMString((ROM char*)charBuffer);
                                 scPrintPacketToConsole(stReceivedMessage.Payload,
                                                        ADC_VALUE_INDEX);
                                 break;

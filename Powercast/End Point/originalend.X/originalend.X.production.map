@@ -437,22 +437,22 @@ __FDS             0xf80010          0x2
  .debug_abbrev    0x000b60         0x1f build/default/production/_ext/1127682237/security.o
  .debug_abbrev    0x000b7f         0x1f build/default/production/_ext/1697003801/MRF89XA.o
 
-.debug_line       0x000000        0xbe1
+.debug_line       0x000000        0xbdd
  *(.debug_line)
  .debug_line      0x000000         0xcc build/default/production/_ext/1472/HardwareProfile.o
- .debug_line      0x0000cc        0x224 build/default/production/_ext/1472/EndPoint.o
- .debug_line      0x0002f0         0x1a build/default/production/_ext/1860783399/Console.o
- .debug_line      0x00030a         0xe3 build/default/production/_ext/1860783399/MSPI.o
- .debug_line      0x0003ed         0x9f build/default/production/_ext/1860783399/TimeDelay.o
- .debug_line      0x00048c         0x1a build/default/production/_ext/1466186449/NVM.o
- .debug_line      0x0004a6         0x1a build/default/production/_ext/35256690/MiWi.o
- .debug_line      0x0004c0        0x240 build/default/production/_ext/1109514802/P2P.o
- .debug_line      0x000700        0x132 build/default/production/_ext/1466186449/SymbolTime.o
- .debug_line      0x000832         0x1a build/default/production/_ext/1127682237/crc.o
- .debug_line      0x00084c        0x347 build/default/production/_ext/1061806389/MRF24J40.o
- .debug_line      0x000b93         0x1a build/default/production/_ext/1696884637/MRF49XA.o
- .debug_line      0x000bad         0x1a build/default/production/_ext/1127682237/security.o
- .debug_line      0x000bc7         0x1a build/default/production/_ext/1697003801/MRF89XA.o
+ .debug_line      0x0000cc        0x220 build/default/production/_ext/1472/EndPoint.o
+ .debug_line      0x0002ec         0x1a build/default/production/_ext/1860783399/Console.o
+ .debug_line      0x000306         0xe3 build/default/production/_ext/1860783399/MSPI.o
+ .debug_line      0x0003e9         0x9f build/default/production/_ext/1860783399/TimeDelay.o
+ .debug_line      0x000488         0x1a build/default/production/_ext/1466186449/NVM.o
+ .debug_line      0x0004a2         0x1a build/default/production/_ext/35256690/MiWi.o
+ .debug_line      0x0004bc        0x240 build/default/production/_ext/1109514802/P2P.o
+ .debug_line      0x0006fc        0x132 build/default/production/_ext/1466186449/SymbolTime.o
+ .debug_line      0x00082e         0x1a build/default/production/_ext/1127682237/crc.o
+ .debug_line      0x000848        0x347 build/default/production/_ext/1061806389/MRF24J40.o
+ .debug_line      0x000b8f         0x1a build/default/production/_ext/1696884637/MRF49XA.o
+ .debug_line      0x000ba9         0x1a build/default/production/_ext/1127682237/security.o
+ .debug_line      0x000bc3         0x1a build/default/production/_ext/1697003801/MRF89XA.o
 
 .debug_frame      0x000000        0x43e
  *(.debug_frame)

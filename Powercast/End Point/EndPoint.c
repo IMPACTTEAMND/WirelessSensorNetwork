@@ -31,7 +31,7 @@
 
 /* -- DEFINES and ENUMS -- */
 //TODO: EDIT THIS FOR UNIQUE SLAVE DEVICE
-#define UNIQUE_SLAVE SLAVE_1_ID
+#define UNIQUE_SLAVE SLAVE_3_ID
 
 
 /* -- GLOBAL VARIABLES -- */
@@ -196,7 +196,7 @@ int main(void)
     gdwCalibrationTicks = 0;
     while (gdwCalibrationTicks < ONE_SEC)
     {
-        scCalibrateSensor(EXTERNAL_SENSOR_CHANNEL);
+        scCalibrateSensor(ANALOG_CHANNEL);
     }
     
     while(TRUE)
@@ -208,7 +208,7 @@ int main(void)
         switch(eSlaveCommand)
         {
             case READ_ADC_CMD:
-                if (scfDoReadADC(EXTERNAL_SENSOR_CHANNEL))
+                if (scfDoReadADC(ANALOG_CHANNEL))
                 {
                     scbySlaveStatus = READ_ADC_PASSED;
                 }
@@ -298,9 +298,9 @@ static BOOL scfDoReadADC(WORD wSensorChannel)
             {
                 wADCValue = scwADCRead(wSensorChannel);
                 scaabyResponseBuffer[wPacketIndex][byBuffers] = (BYTE)((wADCValue) >> 1);
-
                 wPacketIndex++;
-                if ((wPacketIndex == MAX_PACKET_SIZE) && (byBuffers < TOTAL_RESPONSE_BUFFERS))
+                if ((wPacketIndex == MAX_PACKET_SIZE) &&
+                    (byBuffers < TOTAL_RESPONSE_BUFFERS))
                 {
                     wPacketIndex = ADC_VALUE_INDEX;
                     byBuffers++;
@@ -464,7 +464,7 @@ static WORD scwADCRead(WORD wADCChannel)
 
     AD1CHS = wADCChannel;           // set channel to measure
     _ADON = 1;        // turn ADC on for taking readings
-    Delay10us(15); // Delay 150us
+    Delay10us(ADC_READ_DELAY);
     _SAMP = 1;       // start sampling
     while (!_DONE);  // wait for ADC to complete
     wADCVal = ADC1BUF0;
