@@ -31,3 +31,7 @@
 # Debug files
 *.dSYM/
 *.su
+
+#powercast things
+Powercast\Access Point\originalA.X
+Powercast\End Point\originalend.X
