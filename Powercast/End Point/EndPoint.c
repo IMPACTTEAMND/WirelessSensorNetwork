@@ -31,7 +31,7 @@
 
 /* -- DEFINES and ENUMS -- */
 //TODO: EDIT THIS FOR UNIQUE SLAVE DEVICE
-#define UNIQUE_SLAVE SLAVE_3_ID
+#define UNIQUE_SLAVE SLAVE_0_ID
 
 
 /* -- GLOBAL VARIABLES -- */
@@ -193,12 +193,6 @@ int main(void)
 
     scMainInit();
     
-    gdwCalibrationTicks = 0;
-    while (gdwCalibrationTicks < ONE_SEC)
-    {
-        scCalibrateSensor(ANALOG_CHANNEL);
-    }
-    
     while(TRUE)
     {
         /* This function maintains the operation of the stack
@@ -208,6 +202,11 @@ int main(void)
         switch(eSlaveCommand)
         {
             case READ_ADC_CMD:
+                gdwCalibrationTicks = 0;
+                while (gdwCalibrationTicks < ONE_SEC)
+                {
+                    scCalibrateSensor(ANALOG_CHANNEL);
+                }
                 if (scfDoReadADC(ANALOG_CHANNEL))
                 {
                     scbySlaveStatus = READ_ADC_PASSED;
@@ -286,7 +285,7 @@ static BOOL scfDoReadADC(WORD wSensorChannel)
     // Reset ADC Timer
     gdwADCTicks = 0;
 
-    while (gdwADCTicks < TIME_TO_MEASURE_ADC)
+    while (gdwADCTicks < TIME_TO_MEASURE_ADC_SLAVE)
     {
         wADCValue = scwADCRead(wSensorChannel);
 

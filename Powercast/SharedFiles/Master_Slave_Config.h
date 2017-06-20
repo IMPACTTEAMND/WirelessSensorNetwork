@@ -2,7 +2,7 @@
 #define _MASTER_SLAVE_CONFIG_
 
 //TODO: EDIT THIS FOR NUMBER OF TOTAL SLAVES
-#define NUMBER_OF_SLAVES 4
+#define NUMBER_OF_SLAVES 1
 
 
 /* -- DEFINES and ENUMS -- */
@@ -26,7 +26,7 @@
 #define BUTTON_TWO 2
 #define UNDEFINED 0
 #define HIGHEST_PRIORITY 7
-#define ADC_READ_DELAY 5  // In tens of microseconds
+#define ADC_READ_DELAY 8  // In tens of microseconds
 
 /* Timer 1 values */
 //#define HUNDRED_USEC 0xFFCD  // 0XFFFF - 0x0050= 50 pulses = 100 usec count at
@@ -53,7 +53,8 @@
 #endif
 
 /* Time defines */
-#define TIME_TO_MEASURE_ADC FIVE_SEC
+#define TIME_TO_MEASURE_ADC_SLAVE FIVE_SEC
+#define TIME_TO_MEASURE_ADC_MASTER FIVE_SEC+ONE_SEC
 
 enum
 {

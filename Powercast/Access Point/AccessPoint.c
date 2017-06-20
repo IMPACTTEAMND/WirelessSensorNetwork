@@ -235,7 +235,7 @@ int main(void)
                scADCRequest(GLOBAL_ID);
 
                gdwADCTicks = 0;
-               while (gdwADCTicks < TIME_TO_MEASURE_ADC);
+               while (gdwADCTicks < TIME_TO_MEASURE_ADC_MASTER);
 
                eMasterStates = REQ_SLAVE_ADC_BUFFERS;
                break;
@@ -427,7 +427,7 @@ static void scReqSlaveADCBuffers()
 
     for(bySlaveIndex = 0; bySlaveIndex < NUMBER_OF_SLAVES; bySlaveIndex++)
     {
-        sprintf(charBuffer, "SlaveID:%d\r\n",
+        sprintf(charBuffer, "\r\nSlaveID:%d\r\n",
         bySlaveIndex);
         ConsolePutROMString((ROM char*)charBuffer);
         for (byBufferIndex = 0; byBufferIndex < TOTAL_RESPONSE_BUFFERS; byBufferIndex++)

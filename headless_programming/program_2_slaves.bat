@@ -1,0 +1,1 @@
+"C:\Program Files (x86)\Microchip\MPLABX\v3.61\mplab_ide\bin\mdb.bat" < ./input_2slaves.txt

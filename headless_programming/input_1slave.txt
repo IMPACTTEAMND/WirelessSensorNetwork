@@ -1,0 +1,7 @@
+device PIC24F16KA102
+hwtool
+hwtool pickit3 -p 0
+program ./elf_files/originalA.X.1slave.elf
+hwtool pickit3 -p 1
+program ./elf_files/originalend.X.slave0.elf
+hwtool
