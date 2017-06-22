@@ -91,12 +91,12 @@ Program Memory  [Origin = 0x200, Length = 0x2a00]
 section                    address   length (PC units)   length (bytes) (dec)
 -------                    -------   -----------------   --------------------
 .text                        0x200               0x7e6           0xbd9  (3033)
-.const                       0x9e6                0xec           0x162  (354)
-.text                        0xad2               0xf76          0x1731  (5937)
-.dinit                      0x1a48                0x98            0xe4  (228)
-.text                       0x1ae0               0x12a           0x1bf  (447)
+.const                       0x9e6               0x2f0           0x468  (1128)
+.text                        0xcd6              0x11b2          0x1a8b  (6795)
+.dinit                      0x1e88                0x98            0xe4  (228)
+.text                       0x1f20               0x12a           0x1bf  (447)
 
-                 Total program memory used (bytes):         0x270f  (9999) 61%
+                 Total program memory used (bytes):         0x2d6f  (11631) 72%
 
 
 Ivt Memory  [Origin = 0x4, Length = 0xfc]
@@ -223,108 +223,108 @@ External Symbols in Program Memory (by address):
                   0x0009da                  ___mulp32eds3
                   0x0009da                  ___mulsi3
                   0x0009da                  ___mulp32peds3
-                  0x000ac2                  _CharacterArray
-                  0x000ad2                  _PHYSetLongRAMAddr
-                  0x000b10                  _PHYSetShortRAMAddr
-                  0x000b40                  _PHYGetShortRAMAddr
-                  0x000b68                  _PHYGetLongRAMAddr
-                  0x000ba0                  _MiMAC_DiscardPacket
-                  0x000ba4                  _MiMAC_ReceivedPacket
-                  0x000db6                  _MiMAC_SetChannel
-                  0x000dde                  _InitMRF24J40
-                  0x000eb0                  _MiMAC_SetPower
-                  0x000ef4                  _MiMAC_SetAltAddress
-                  0x000f2c                  _MiMAC_SendPacket
-                  0x001132                  _MiMAC_Init
-                  0x001146                  __INT1Interrupt
-                  0x0011f8                  _MacroNop
-                  0x0011fc                  _SendPacket
-                  0x001260                  _MiApp_BroadcastPacket
-                  0x00126c                  _MiApp_UnicastAddress
-                  0x00127a                  _MiApp_UnicastConnection
-                  0x00129a                  _isSameAddress
-                  0x0012b8                  _MiApp_StartConnection
-                  0x0012c4                  _MiApp_DiscardMessage
-                  0x0012ca                  _MiApp_SetChannel
-                  0x0012e8                  _MiApp_ProtocolInit
-                  0x001346                  _DumpConnection
-                  0x0013ee                  _AddConnection
-                  0x001470                  _P2PTasks
-                  0x00164a                  _MiApp_MessageAvailable
-                  0x001654                  _MiApp_EstablishConnection
-                  0x0016f2                  _MiApp_RemoveConnection
-                  0x001776                  _MiApp_ConnectionMode
-                  0x00191a                  __T1Interrupt
-                  0x00194a                  _main
-                  0x0019a2                  _BoardInit
-                  0x0019d0                  _LCDTRXCount
-                  0x0019d2                  _LCDDisplay
-                  0x0019d4                  _ButtonPressed
-                  0x001a36                  __CNInterrupt
-                  0x001ae0                  _Delay10us
-                  0x001b2a                  _DelayMs
-                  0x001b62                  _ConsoleInit
-                  0x001b74                  _ConsolePut
-                  0x001b82                  _ConsolePutROMString
-                  0x001b9a                  _ConsoleGet
-                  0x001ba8                  _PrintChar
-                  0x001bc0                  _PrintDec
-                  0x001bde                  _SPIPut
-                  0x001bf0                  _SPIGet
-                  0x001bf8                  _InitSymbolTimer
-                  0x001c00                  _TickGet
+                  0x000cc6                  _CharacterArray
+                  0x000cd6                  _PHYSetLongRAMAddr
+                  0x000d14                  _PHYSetShortRAMAddr
+                  0x000d44                  _PHYGetShortRAMAddr
+                  0x000d6c                  _PHYGetLongRAMAddr
+                  0x000da4                  _MiMAC_DiscardPacket
+                  0x000da8                  _MiMAC_ReceivedPacket
+                  0x000fba                  _MiMAC_SetChannel
+                  0x000fe2                  _InitMRF24J40
+                  0x0010b4                  _MiMAC_SetPower
+                  0x0010f8                  _MiMAC_SetAltAddress
+                  0x001130                  _MiMAC_SendPacket
+                  0x001336                  _MiMAC_Init
+                  0x00134a                  __INT1Interrupt
+                  0x0013fc                  _MacroNop
+                  0x001400                  _SendPacket
+                  0x001464                  _MiApp_BroadcastPacket
+                  0x001470                  _MiApp_UnicastAddress
+                  0x00147e                  _MiApp_UnicastConnection
+                  0x00149e                  _isSameAddress
+                  0x0014bc                  _MiApp_StartConnection
+                  0x0014c8                  _MiApp_DiscardMessage
+                  0x0014ce                  _MiApp_SetChannel
+                  0x0014ec                  _MiApp_ProtocolInit
+                  0x00154a                  _DumpConnection
+                  0x0015f2                  _AddConnection
+                  0x001674                  _P2PTasks
+                  0x00184e                  _MiApp_MessageAvailable
+                  0x001858                  _MiApp_EstablishConnection
+                  0x0018f6                  _MiApp_RemoveConnection
+                  0x00197a                  _MiApp_ConnectionMode
+                  0x001cc6                  __T1Interrupt
+                  0x001cf6                  _main
+                  0x001de2                  _BoardInit
+                  0x001e10                  _LCDTRXCount
+                  0x001e12                  _LCDDisplay
+                  0x001e14                  _ButtonPressed
+                  0x001e76                  __CNInterrupt
+                  0x001f20                  _Delay10us
+                  0x001f6a                  _DelayMs
+                  0x001fa2                  _ConsoleInit
+                  0x001fb4                  _ConsolePut
+                  0x001fc2                  _ConsolePutROMString
+                  0x001fda                  _ConsoleGet
+                  0x001fe8                  _PrintChar
+                  0x002000                  _PrintDec
+                  0x00201e                  _SPIPut
+                  0x002030                  _SPIGet
+                  0x002038                  _InitSymbolTimer
+                  0x002040                  _TickGet
 
 External Symbols in Program Memory (by name):
 
-                  0x0013ee                  _AddConnection
-                  0x0019a2                  _BoardInit
-                  0x0019d4                  _ButtonPressed
-                  0x000ac2                  _CharacterArray
-                  0x001b9a                  _ConsoleGet
-                  0x001b62                  _ConsoleInit
-                  0x001b74                  _ConsolePut
-                  0x001b82                  _ConsolePutROMString
-                  0x001ae0                  _Delay10us
-                  0x001b2a                  _DelayMs
-                  0x001346                  _DumpConnection
-                  0x000dde                  _InitMRF24J40
-                  0x001bf8                  _InitSymbolTimer
-                  0x0019d2                  _LCDDisplay
-                  0x0019d0                  _LCDTRXCount
-                  0x0011f8                  _MacroNop
-                  0x001260                  _MiApp_BroadcastPacket
-                  0x001776                  _MiApp_ConnectionMode
-                  0x0012c4                  _MiApp_DiscardMessage
-                  0x001654                  _MiApp_EstablishConnection
-                  0x00164a                  _MiApp_MessageAvailable
-                  0x0012e8                  _MiApp_ProtocolInit
-                  0x0016f2                  _MiApp_RemoveConnection
-                  0x0012ca                  _MiApp_SetChannel
-                  0x0012b8                  _MiApp_StartConnection
-                  0x00126c                  _MiApp_UnicastAddress
-                  0x00127a                  _MiApp_UnicastConnection
-                  0x000ba0                  _MiMAC_DiscardPacket
-                  0x001132                  _MiMAC_Init
-                  0x000ba4                  _MiMAC_ReceivedPacket
-                  0x000f2c                  _MiMAC_SendPacket
-                  0x000ef4                  _MiMAC_SetAltAddress
-                  0x000db6                  _MiMAC_SetChannel
-                  0x000eb0                  _MiMAC_SetPower
-                  0x001470                  _P2PTasks
-                  0x000b68                  _PHYGetLongRAMAddr
-                  0x000b40                  _PHYGetShortRAMAddr
-                  0x000ad2                  _PHYSetLongRAMAddr
-                  0x000b10                  _PHYSetShortRAMAddr
-                  0x001ba8                  _PrintChar
-                  0x001bc0                  _PrintDec
-                  0x001bf0                  _SPIGet
-                  0x001bde                  _SPIPut
-                  0x0011fc                  _SendPacket
-                  0x001c00                  _TickGet
-                  0x001a36                  __CNInterrupt
+                  0x0015f2                  _AddConnection
+                  0x001de2                  _BoardInit
+                  0x001e14                  _ButtonPressed
+                  0x000cc6                  _CharacterArray
+                  0x001fda                  _ConsoleGet
+                  0x001fa2                  _ConsoleInit
+                  0x001fb4                  _ConsolePut
+                  0x001fc2                  _ConsolePutROMString
+                  0x001f20                  _Delay10us
+                  0x001f6a                  _DelayMs
+                  0x00154a                  _DumpConnection
+                  0x000fe2                  _InitMRF24J40
+                  0x002038                  _InitSymbolTimer
+                  0x001e12                  _LCDDisplay
+                  0x001e10                  _LCDTRXCount
+                  0x0013fc                  _MacroNop
+                  0x001464                  _MiApp_BroadcastPacket
+                  0x00197a                  _MiApp_ConnectionMode
+                  0x0014c8                  _MiApp_DiscardMessage
+                  0x001858                  _MiApp_EstablishConnection
+                  0x00184e                  _MiApp_MessageAvailable
+                  0x0014ec                  _MiApp_ProtocolInit
+                  0x0018f6                  _MiApp_RemoveConnection
+                  0x0014ce                  _MiApp_SetChannel
+                  0x0014bc                  _MiApp_StartConnection
+                  0x001470                  _MiApp_UnicastAddress
+                  0x00147e                  _MiApp_UnicastConnection
+                  0x000da4                  _MiMAC_DiscardPacket
+                  0x001336                  _MiMAC_Init
+                  0x000da8                  _MiMAC_ReceivedPacket
+                  0x001130                  _MiMAC_SendPacket
+                  0x0010f8                  _MiMAC_SetAltAddress
+                  0x000fba                  _MiMAC_SetChannel
+                  0x0010b4                  _MiMAC_SetPower
+                  0x001674                  _P2PTasks
+                  0x000d6c                  _PHYGetLongRAMAddr
+                  0x000d44                  _PHYGetShortRAMAddr
+                  0x000cd6                  _PHYSetLongRAMAddr
+                  0x000d14                  _PHYSetShortRAMAddr
+                  0x001fe8                  _PrintChar
+                  0x002000                  _PrintDec
+                  0x002030                  _SPIGet
+                  0x00201e                  _SPIPut
+                  0x001400                  _SendPacket
+                  0x002040                  _TickGet
+                  0x001e76                  __CNInterrupt
                   0x0002c8                  __DefaultInterrupt
-                  0x001146                  __INT1Interrupt
-                  0x00191a                  __T1Interrupt
+                  0x00134a                  __INT1Interrupt
+                  0x001cc6                  __T1Interrupt
                   0x0009da                  ___mulp32eds3
                   0x0009da                  ___mulp32peds3
                   0x0009da                  ___mulsi3
@@ -335,8 +335,8 @@ External Symbols in Program Memory (by name):
                   0x000200                  __resetPRI
                   0x000328                  __sprintf_cdnopuxX
                   0x000366                  __vfprintf_cdnopuxX
-                  0x00129a                  _isSameAddress
-                  0x00194a                  _main
+                  0x00149e                  _isSameAddress
+                  0x001cf6                  _main
 
 Memory Configuration
 
@@ -478,81 +478,81 @@ __FDS
 .comment
  *(.comment)
 
-.debug_info       0x000000       0x6858
+.debug_info       0x000000       0x6a09
  *(.debug_info)
  .debug_info      0x000000        0xf69 build/default/production/_ext/1472/HardwareProfile.o
- .debug_info      0x000f69       0x1415 build/default/production/_ext/1472/AccessPoint.o
- .debug_info      0x00237e        0x803 build/default/production/_ext/1860783399/Console.o
- .debug_info      0x002b81        0x32a build/default/production/_ext/1860783399/MSPI.o
- .debug_info      0x002eab        0x253 build/default/production/_ext/1860783399/TimeDelay.o
- .debug_info      0x0030fe        0x181 build/default/production/_ext/35256690/MiWi.o
- .debug_info      0x00327f       0x1418 build/default/production/_ext/1109514802/P2P.o
- .debug_info      0x004697        0x183 build/default/production/_ext/1466186449/LCDBlocking.o
- .debug_info      0x00481a        0x17b build/default/production/_ext/1466186449/NVM.o
- .debug_info      0x004995        0x483 build/default/production/_ext/1466186449/SymbolTime.o
- .debug_info      0x004e18        0x176 build/default/production/_ext/1127682237/crc.o
- .debug_info      0x004f8e        0x17b build/default/production/_ext/1127682237/security.o
- .debug_info      0x005109       0x144b build/default/production/_ext/1061806389/MRF24J40.o
- .debug_info      0x006554        0x182 build/default/production/_ext/1696884637/MRF49XA.o
- .debug_info      0x0066d6        0x182 build/default/production/_ext/1697003801/MRF89XA.o
+ .debug_info      0x000f69       0x15c6 build/default/production/_ext/1472/AccessPoint.o
+ .debug_info      0x00252f        0x803 build/default/production/_ext/1860783399/Console.o
+ .debug_info      0x002d32        0x32a build/default/production/_ext/1860783399/MSPI.o
+ .debug_info      0x00305c        0x253 build/default/production/_ext/1860783399/TimeDelay.o
+ .debug_info      0x0032af        0x181 build/default/production/_ext/35256690/MiWi.o
+ .debug_info      0x003430       0x1418 build/default/production/_ext/1109514802/P2P.o
+ .debug_info      0x004848        0x183 build/default/production/_ext/1466186449/LCDBlocking.o
+ .debug_info      0x0049cb        0x17b build/default/production/_ext/1466186449/NVM.o
+ .debug_info      0x004b46        0x483 build/default/production/_ext/1466186449/SymbolTime.o
+ .debug_info      0x004fc9        0x176 build/default/production/_ext/1127682237/crc.o
+ .debug_info      0x00513f        0x17b build/default/production/_ext/1127682237/security.o
+ .debug_info      0x0052ba       0x144b build/default/production/_ext/1061806389/MRF24J40.o
+ .debug_info      0x006705        0x182 build/default/production/_ext/1696884637/MRF49XA.o
+ .debug_info      0x006887        0x182 build/default/production/_ext/1697003801/MRF89XA.o
  *(.gnu.linkonce.wi.*)
 
-.debug_abbrev     0x000000        0xe0d
+.debug_abbrev     0x000000        0xe00
  *(.debug_abbrev)
  .debug_abbrev    0x000000        0x1cb build/default/production/_ext/1472/HardwareProfile.o
- .debug_abbrev    0x0001cb        0x230 build/default/production/_ext/1472/AccessPoint.o
- .debug_abbrev    0x0003fb        0x157 build/default/production/_ext/1860783399/Console.o
- .debug_abbrev    0x000552         0xc3 build/default/production/_ext/1860783399/MSPI.o
- .debug_abbrev    0x000615         0x68 build/default/production/_ext/1860783399/TimeDelay.o
- .debug_abbrev    0x00067d         0x1f build/default/production/_ext/35256690/MiWi.o
- .debug_abbrev    0x00069c        0x2d2 build/default/production/_ext/1109514802/P2P.o
- .debug_abbrev    0x00096e         0x1f build/default/production/_ext/1466186449/LCDBlocking.o
- .debug_abbrev    0x00098d         0x1f build/default/production/_ext/1466186449/NVM.o
- .debug_abbrev    0x0009ac        0x148 build/default/production/_ext/1466186449/SymbolTime.o
- .debug_abbrev    0x000af4         0x1f build/default/production/_ext/1127682237/crc.o
- .debug_abbrev    0x000b13         0x1f build/default/production/_ext/1127682237/security.o
- .debug_abbrev    0x000b32        0x29d build/default/production/_ext/1061806389/MRF24J40.o
- .debug_abbrev    0x000dcf         0x1f build/default/production/_ext/1696884637/MRF49XA.o
- .debug_abbrev    0x000dee         0x1f build/default/production/_ext/1697003801/MRF89XA.o
+ .debug_abbrev    0x0001cb        0x223 build/default/production/_ext/1472/AccessPoint.o
+ .debug_abbrev    0x0003ee        0x157 build/default/production/_ext/1860783399/Console.o
+ .debug_abbrev    0x000545         0xc3 build/default/production/_ext/1860783399/MSPI.o
+ .debug_abbrev    0x000608         0x68 build/default/production/_ext/1860783399/TimeDelay.o
+ .debug_abbrev    0x000670         0x1f build/default/production/_ext/35256690/MiWi.o
+ .debug_abbrev    0x00068f        0x2d2 build/default/production/_ext/1109514802/P2P.o
+ .debug_abbrev    0x000961         0x1f build/default/production/_ext/1466186449/LCDBlocking.o
+ .debug_abbrev    0x000980         0x1f build/default/production/_ext/1466186449/NVM.o
+ .debug_abbrev    0x00099f        0x148 build/default/production/_ext/1466186449/SymbolTime.o
+ .debug_abbrev    0x000ae7         0x1f build/default/production/_ext/1127682237/crc.o
+ .debug_abbrev    0x000b06         0x1f build/default/production/_ext/1127682237/security.o
+ .debug_abbrev    0x000b25        0x29d build/default/production/_ext/1061806389/MRF24J40.o
+ .debug_abbrev    0x000dc2         0x1f build/default/production/_ext/1696884637/MRF49XA.o
+ .debug_abbrev    0x000de1         0x1f build/default/production/_ext/1697003801/MRF89XA.o
 
-.debug_line       0x000000        0xe83
+.debug_line       0x000000        0xefc
  *(.debug_line)
  .debug_line      0x000000        0x152 build/default/production/_ext/1472/HardwareProfile.o
- .debug_line      0x000152        0x21a build/default/production/_ext/1472/AccessPoint.o
- .debug_line      0x00036c        0x104 build/default/production/_ext/1860783399/Console.o
- .debug_line      0x000470         0xe3 build/default/production/_ext/1860783399/MSPI.o
- .debug_line      0x000553         0x9f build/default/production/_ext/1860783399/TimeDelay.o
- .debug_line      0x0005f2         0x1a build/default/production/_ext/35256690/MiWi.o
- .debug_line      0x00060c        0x35b build/default/production/_ext/1109514802/P2P.o
- .debug_line      0x000967         0x1a build/default/production/_ext/1466186449/LCDBlocking.o
- .debug_line      0x000981         0x1a build/default/production/_ext/1466186449/NVM.o
- .debug_line      0x00099b        0x132 build/default/production/_ext/1466186449/SymbolTime.o
- .debug_line      0x000acd         0x1a build/default/production/_ext/1127682237/crc.o
- .debug_line      0x000ae7         0x1a build/default/production/_ext/1127682237/security.o
- .debug_line      0x000b01        0x34e build/default/production/_ext/1061806389/MRF24J40.o
- .debug_line      0x000e4f         0x1a build/default/production/_ext/1696884637/MRF49XA.o
- .debug_line      0x000e69         0x1a build/default/production/_ext/1697003801/MRF89XA.o
+ .debug_line      0x000152        0x293 build/default/production/_ext/1472/AccessPoint.o
+ .debug_line      0x0003e5        0x104 build/default/production/_ext/1860783399/Console.o
+ .debug_line      0x0004e9         0xe3 build/default/production/_ext/1860783399/MSPI.o
+ .debug_line      0x0005cc         0x9f build/default/production/_ext/1860783399/TimeDelay.o
+ .debug_line      0x00066b         0x1a build/default/production/_ext/35256690/MiWi.o
+ .debug_line      0x000685        0x35b build/default/production/_ext/1109514802/P2P.o
+ .debug_line      0x0009e0         0x1a build/default/production/_ext/1466186449/LCDBlocking.o
+ .debug_line      0x0009fa         0x1a build/default/production/_ext/1466186449/NVM.o
+ .debug_line      0x000a14        0x132 build/default/production/_ext/1466186449/SymbolTime.o
+ .debug_line      0x000b46         0x1a build/default/production/_ext/1127682237/crc.o
+ .debug_line      0x000b60         0x1a build/default/production/_ext/1127682237/security.o
+ .debug_line      0x000b7a        0x34e build/default/production/_ext/1061806389/MRF24J40.o
+ .debug_line      0x000ec8         0x1a build/default/production/_ext/1696884637/MRF49XA.o
+ .debug_line      0x000ee2         0x1a build/default/production/_ext/1697003801/MRF89XA.o
 
-.debug_frame      0x000000        0x658
+.debug_frame      0x000000        0x8b0
  *(.debug_frame)
  .debug_frame     0x000000         0x76 build/default/production/_ext/1472/HardwareProfile.o
- .debug_frame     0x000076        0x158 build/default/production/_ext/1472/AccessPoint.o
- .debug_frame     0x0001ce         0x92 build/default/production/_ext/1860783399/Console.o
- .debug_frame     0x000260         0x34 build/default/production/_ext/1860783399/MSPI.o
- .debug_frame     0x000294         0x54 build/default/production/_ext/1860783399/TimeDelay.o
- .debug_frame     0x0002e8        0x1ca build/default/production/_ext/1109514802/P2P.o
- .debug_frame     0x0004b2         0x34 build/default/production/_ext/1466186449/SymbolTime.o
- .debug_frame     0x0004e6        0x172 build/default/production/_ext/1061806389/MRF24J40.o
+ .debug_frame     0x000076        0x3b0 build/default/production/_ext/1472/AccessPoint.o
+ .debug_frame     0x000426         0x92 build/default/production/_ext/1860783399/Console.o
+ .debug_frame     0x0004b8         0x34 build/default/production/_ext/1860783399/MSPI.o
+ .debug_frame     0x0004ec         0x54 build/default/production/_ext/1860783399/TimeDelay.o
+ .debug_frame     0x000540        0x1ca build/default/production/_ext/1109514802/P2P.o
+ .debug_frame     0x00070a         0x34 build/default/production/_ext/1466186449/SymbolTime.o
+ .debug_frame     0x00073e        0x172 build/default/production/_ext/1061806389/MRF24J40.o
 
-.debug_str        0x000000        0x357
+.debug_str        0x000000        0x376
  *(.debug_str)
  .debug_str       0x000000         0x96 build/default/production/_ext/1472/HardwareProfile.o
- .debug_str       0x000096         0x84 build/default/production/_ext/1472/AccessPoint.o
- .debug_str       0x00011a         0x2d build/default/production/_ext/1860783399/Console.o
- .debug_str       0x000147          0x9 build/default/production/_ext/1860783399/MSPI.o
- .debug_str       0x000150        0x116 build/default/production/_ext/1109514802/P2P.o
- .debug_str       0x000266          0xa build/default/production/_ext/1466186449/SymbolTime.o
- .debug_str       0x000270         0xe7 build/default/production/_ext/1061806389/MRF24J40.o
+ .debug_str       0x000096         0xa3 build/default/production/_ext/1472/AccessPoint.o
+ .debug_str       0x000139         0x2d build/default/production/_ext/1860783399/Console.o
+ .debug_str       0x000166          0x9 build/default/production/_ext/1860783399/MSPI.o
+ .debug_str       0x00016f        0x116 build/default/production/_ext/1109514802/P2P.o
+ .debug_str       0x000285          0xa build/default/production/_ext/1466186449/SymbolTime.o
+ .debug_str       0x00028f         0xe7 build/default/production/_ext/1061806389/MRF24J40.o
 
 .debug_loc
  *(.debug_loc)
@@ -1171,72 +1171,72 @@ __c30_signature
  .ivt._INT1Interrupt
                   0x00003c          0x2 build/default/production/_ext/1061806389/MRF24J40.o
 
-.const              0x89e6         0xec load address 0x0009e6  
- .const             0x89e6         0x90 build/default/production/_ext/1472/AccessPoint.o
- .const             0x8a76         0x4c build/default/production/_ext/1109514802/P2P.o
- .const             0x8ac2         0x10 build/default/production/_ext/1860783399/Console.o
-                    0x8ac2                  _CharacterArray
+.const              0x89e6        0x2f0 load address 0x0009e6  
+ .const             0x89e6        0x294 build/default/production/_ext/1472/AccessPoint.o
+ .const             0x8c7a         0x4c build/default/production/_ext/1109514802/P2P.o
+ .const             0x8cc6         0x10 build/default/production/_ext/1860783399/Console.o
+                    0x8cc6                  _CharacterArray
 
-.text             0x000ad2        0xf76
- .text            0x000ad2        0x726 build/default/production/_ext/1061806389/MRF24J40.o
-                  0x000ad2                  _PHYSetLongRAMAddr
-                  0x000b10                  _PHYSetShortRAMAddr
-                  0x000b40                  _PHYGetShortRAMAddr
-                  0x000b68                  _PHYGetLongRAMAddr
-                  0x000ba0                  _MiMAC_DiscardPacket
-                  0x000ba4                  _MiMAC_ReceivedPacket
-                  0x000db6                  _MiMAC_SetChannel
-                  0x000dde                  _InitMRF24J40
-                  0x000eb0                  _MiMAC_SetPower
-                  0x000ef4                  _MiMAC_SetAltAddress
-                  0x000f2c                  _MiMAC_SendPacket
-                  0x001132                  _MiMAC_Init
-                  0x001146                  __INT1Interrupt
- .text            0x0011f8        0x594 build/default/production/_ext/1109514802/P2P.o
-                  0x0011f8                  _MacroNop
-                  0x0011fc                  _SendPacket
-                  0x001260                  _MiApp_BroadcastPacket
-                  0x00126c                  _MiApp_UnicastAddress
-                  0x00127a                  _MiApp_UnicastConnection
-                  0x00129a                  _isSameAddress
-                  0x0012b8                  _MiApp_StartConnection
-                  0x0012c4                  _MiApp_DiscardMessage
-                  0x0012ca                  _MiApp_SetChannel
-                  0x0012e8                  _MiApp_ProtocolInit
-                  0x001346                  _DumpConnection
-                  0x0013ee                  _AddConnection
-                  0x001470                  _P2PTasks
-                  0x00164a                  _MiApp_MessageAvailable
-                  0x001654                  _MiApp_EstablishConnection
-                  0x0016f2                  _MiApp_RemoveConnection
-                  0x001776                  _MiApp_ConnectionMode
- .text            0x00178c        0x216 build/default/production/_ext/1472/AccessPoint.o
-                  0x00191a                  __T1Interrupt
-                  0x00194a                  _main
- .text            0x0019a2         0xa6 build/default/production/_ext/1472/HardwareProfile.o
-                  0x0019a2                  _BoardInit
-                  0x0019d0                  _LCDTRXCount
-                  0x0019d2                  _LCDDisplay
-                  0x0019d4                  _ButtonPressed
-                  0x001a36                  __CNInterrupt
+.text             0x000cd6       0x11b2
+ .text            0x000cd6        0x726 build/default/production/_ext/1061806389/MRF24J40.o
+                  0x000cd6                  _PHYSetLongRAMAddr
+                  0x000d14                  _PHYSetShortRAMAddr
+                  0x000d44                  _PHYGetShortRAMAddr
+                  0x000d6c                  _PHYGetLongRAMAddr
+                  0x000da4                  _MiMAC_DiscardPacket
+                  0x000da8                  _MiMAC_ReceivedPacket
+                  0x000fba                  _MiMAC_SetChannel
+                  0x000fe2                  _InitMRF24J40
+                  0x0010b4                  _MiMAC_SetPower
+                  0x0010f8                  _MiMAC_SetAltAddress
+                  0x001130                  _MiMAC_SendPacket
+                  0x001336                  _MiMAC_Init
+                  0x00134a                  __INT1Interrupt
+ .text            0x0013fc        0x594 build/default/production/_ext/1109514802/P2P.o
+                  0x0013fc                  _MacroNop
+                  0x001400                  _SendPacket
+                  0x001464                  _MiApp_BroadcastPacket
+                  0x001470                  _MiApp_UnicastAddress
+                  0x00147e                  _MiApp_UnicastConnection
+                  0x00149e                  _isSameAddress
+                  0x0014bc                  _MiApp_StartConnection
+                  0x0014c8                  _MiApp_DiscardMessage
+                  0x0014ce                  _MiApp_SetChannel
+                  0x0014ec                  _MiApp_ProtocolInit
+                  0x00154a                  _DumpConnection
+                  0x0015f2                  _AddConnection
+                  0x001674                  _P2PTasks
+                  0x00184e                  _MiApp_MessageAvailable
+                  0x001858                  _MiApp_EstablishConnection
+                  0x0018f6                  _MiApp_RemoveConnection
+                  0x00197a                  _MiApp_ConnectionMode
+ .text            0x001990        0x452 build/default/production/_ext/1472/AccessPoint.o
+                  0x001cc6                  __T1Interrupt
+                  0x001cf6                  _main
+ .text            0x001de2         0xa6 build/default/production/_ext/1472/HardwareProfile.o
+                  0x001de2                  _BoardInit
+                  0x001e10                  _LCDTRXCount
+                  0x001e12                  _LCDDisplay
+                  0x001e14                  _ButtonPressed
+                  0x001e76                  __CNInterrupt
 
-.dinit            0x001a48         0x98
- .dinit           0x001a48         0x98 data_init
+.dinit            0x001e88         0x98
+ .dinit           0x001e88         0x98 data_init
 
-.text             0x001ae0        0x12a
- .text            0x001ae0         0x82 build/default/production/_ext/1860783399/TimeDelay.o
-                  0x001ae0                  _Delay10us
-                  0x001b2a                  _DelayMs
- .text            0x001b62         0x7c build/default/production/_ext/1860783399/Console.o
-                  0x001b62                  _ConsoleInit
-                  0x001b74                  _ConsolePut
-                  0x001b82                  _ConsolePutROMString
-                  0x001b9a                  _ConsoleGet
-                  0x001ba8                  _PrintChar
-                  0x001bc0                  _PrintDec
- .text            0x001bde         0x1a build/default/production/_ext/1860783399/MSPI.o
-                  0x001bde                  _SPIPut
-                  0x001bf0                  _SPIGet
- .text            0x001bf8         0x12 build/default/production/_ext/1466186449/SymbolTime.o
-                  0x001bf8                  _InitSymbolTimer
-                  0x001c00                  _TickGet
+.text             0x001f20        0x12a
+ .text            0x001f20         0x82 build/default/production/_ext/1860783399/TimeDelay.o
+                  0x001f20                  _Delay10us
+                  0x001f6a                  _DelayMs
+ .text            0x001fa2         0x7c build/default/production/_ext/1860783399/Console.o
+                  0x001fa2                  _ConsoleInit
+                  0x001fb4                  _ConsolePut
+                  0x001fc2                  _ConsolePutROMString
+                  0x001fda                  _ConsoleGet
+                  0x001fe8                  _PrintChar
+                  0x002000                  _PrintDec
+ .text            0x00201e         0x1a build/default/production/_ext/1860783399/MSPI.o
+                  0x00201e                  _SPIPut
+                  0x002030                  _SPIGet
+ .text            0x002038         0x12 build/default/production/_ext/1466186449/SymbolTime.o
+                  0x002038                  _InitSymbolTimer
+                  0x002040                  _TickGet

@@ -33,7 +33,7 @@
 /* -- DEFINES and ENUMS -- */
 
 /* Comment/Uncomment to enable/disable debug/*/
-//#define DEBUG
+#define DEBUG
 
 
 /* -- GLOBAL VARIABLES -- */
@@ -64,8 +64,11 @@ static void scMainInit(void);
 static void scTransmit(BYTE *pbyTxBuffer, BYTE byLength);
 static BOOL scfReceive(RECEIVED_MESSAGE *stReceiveMessageBuffer);
 static void scADCRequest(BYTE bySlaveID);
+static void scPositionMeasurementRequest(BYTE bySlaveID);
+static void scPositionTimerRequest(BYTE bySlaveID);
 static void scReqSlaveBuffer(BYTE bySlaveID, BYTE byBuffer);
 static void scReqSlaveADCBuffers();
+static void scReqSlavePositionBuffer();
 static void scPrintPacketToConsole(BYTE * byPacket, BYTE byLength);
 
 
@@ -201,7 +204,9 @@ DATE             NAME               REVISION COMMENT
 int main(void)
 {
     MASTER_STATES_E eMasterStates = INACTIVE;
-
+    BYTE byButtonPressCount = 0;
+    BYTE byButtonPressWaitDelay = 0xFF;
+    
     scMainInit();
 
     while(TRUE)
@@ -212,44 +217,89 @@ int main(void)
 
         switch(eMasterStates)
         {
-            case INACTIVE:
-                // Turn OFF LED 1 and 2 to indicate inactive
-                LED_1 = 1;
-                LED_2 = 1;
-                if (ButtonPressed() == BUTTON_ONE)
-                {
-                    // Turn ON LED 1 to indicate ADC READ begins
-                    LED_1 = 0;
-                    eMasterStates = REQ_READ_ADC;
-                    //eMasterStates = REQ_SLAVE_ADC_BUFFERS;
-                }
-                else if (ButtonPressed() == BUTTON_TWO) // Button 2 doesn't actually work
-                {
-                    // Turn ON LED 2 to indicate SLAVE RESPONSE
-                    LED_2 = 0;
-                    eMasterStates = REQ_SLAVE_ADC_BUFFERS;
-                }
-                break;
-
-            case REQ_READ_ADC:
+            case REQ_DO_READ_ADC:
                scADCRequest(GLOBAL_ID);
 
                gdwADCTicks = 0;
                while (gdwADCTicks < TIME_TO_MEASURE_ADC_MASTER);
 
-               eMasterStates = REQ_SLAVE_ADC_BUFFERS;
+               eMasterStates = INACTIVE;
                break;
 
             case REQ_SLAVE_ADC_BUFFERS:
                 scReqSlaveADCBuffers();
                 
-                //eMasterStates = INACTIVE;
-                eMasterStates = REQ_READ_ADC;
-                break;
-
-            default:
-                // Error case
                 eMasterStates = INACTIVE;
+                break;
+            
+            case REQ_DO_MEASURE_POSITION:
+                scPositionMeasurementRequest(GLOBAL_ID);
+                eMasterStates = INACTIVE;
+                break;
+                
+            case REQ_POSITION_TIMER:
+                scReqSlavePositionBuffer();
+                eMasterStates = INACTIVE;
+                break;                
+                
+            case INACTIVE:
+            default:
+                // Turn OFF LED 1 and 2 to indicate inactive
+                LED_1 = 1;
+                LED_2 = 1;
+                if (ButtonPressed() == BUTTON_ONE)
+                {
+                    while (byButtonPressWaitDelay--)
+                    {
+                        // Wait ~3 Seconds and count the amount of button presses
+                        DelayMs(15);
+                        if (ButtonPressed() == BUTTON_ONE)
+                        {
+                            byButtonPressCount++;
+                            // Toggle LED 1 and LED 2
+                            LED_1 ^= 1;
+                            LED_2 ^= 1;
+                        }
+                    }
+                    if(byButtonPressCount == 1)
+                    {
+                        // Turn ON LED 1 to indicate REQ_DO_READ_ADC
+                        LED_1 = 0;
+                        LED_2 = 1;
+                        eMasterStates = REQ_DO_READ_ADC;
+                    }
+                    else if(byButtonPressCount == 2)
+                    {
+                        // Turn ON LED 2 to indicate REQ_DO_MEASURE_POSITION
+                        LED_1 = 1;
+                        LED_2 = 0;
+                        eMasterStates = REQ_DO_MEASURE_POSITION;
+                    }
+                    else if(byButtonPressCount == 3)
+                    {
+                        // Turn ON LED 1 and LED 2 to indicate REQ_SLAVE_ADC_BUFFERS
+                        LED_1 = 0;
+                        LED_2 = 0;
+                        eMasterStates = REQ_SLAVE_ADC_BUFFERS;
+                    }
+                    else if(byButtonPressCount == 4)
+                    {
+                        // Turn OFF LED 1 and LED 2 to indicate REQ_POSITION_TIMER
+                        LED_1 = 1;
+                        LED_2 = 1;
+                        eMasterStates = REQ_POSITION_TIMER;
+                    }
+                    else
+                    {
+                        #ifdef DEBUG
+                        sprintf(charBuffer,
+                                "Too many button presses:%d\r\n",
+                                byButtonPressCount);
+                        ConsolePutROMString((ROM char *)charBuffer);
+                        #endif /* ifndef DEBUG */
+                    }
+                    byButtonPressCount = 0;
+                }
                 break;
         }
     }
@@ -341,7 +391,69 @@ static BOOL scfReceive(RECEIVED_MESSAGE * stReceiveMessageBuffer)
 
 /*----------------------------------------------------------------------------
 
-@Prototype:  static void scADCRequest(void)
+@Prototype:  static void scPositionMeasurementRequest(BYTE bySlaveID)
+
+@Description: Request position from slave registered to ID
+
+@Parameters: BYTE bySlaveID
+
+@Returns: void
+
+@Revision History:
+DATE             NAME               REVISION COMMENT
+06/21/2017       Ali Haidous        Initial Revision
+
+*----------------------------------------------------------------------------*/
+static void scPositionMeasurementRequest(BYTE bySlaveID)
+{
+    #ifdef DEBUG
+    sprintf(charBuffer,
+            "Position Measurement Request Slave:%d\r\n",
+            bySlaveID);
+    ConsolePutROMString((ROM char *)charBuffer);
+    #endif /* ifndef DEBUG */
+
+    // TODO: Make generic to map directly to INDEX
+    BYTE abyDataBuffer[] = { bySlaveID, DO_MEASURE_POSITION_CMD };
+
+    scTransmit((BYTE *)&abyDataBuffer, sizeof(abyDataBuffer));
+}
+
+
+/*----------------------------------------------------------------------------
+
+@Prototype:  static void scPositionTimerRequest(BYTE bySlaveID)
+
+@Description: Request position from slave registered to ID
+
+@Parameters: BYTE bySlaveID
+
+@Returns: void
+
+@Revision History:
+DATE             NAME               REVISION COMMENT
+06/21/2017       Ali Haidous        Initial Revision
+
+*----------------------------------------------------------------------------*/
+static void scPositionTimerRequest(BYTE bySlaveID)
+{
+    #ifdef DEBUG
+    sprintf(charBuffer,
+            "Position Timer Request Slave:%d\r\n",
+            bySlaveID);
+    ConsolePutROMString((ROM char *)charBuffer);
+    #endif /* ifndef DEBUG */
+
+    // TODO: Make generic to map directly to INDEX
+    BYTE abyDataBuffer[] = { bySlaveID, REQ_POSITION_TIMER_CMD };
+
+    scTransmit((BYTE *)&abyDataBuffer, sizeof(abyDataBuffer));
+}
+
+
+/*----------------------------------------------------------------------------
+
+@Prototype:  static void scADCRequest(BYTE bySlaveID)
 
 @Description: Request ADC from slave registered to ID
 
@@ -364,7 +476,7 @@ static void scADCRequest(BYTE bySlaveID)
     #endif /* ifndef DEBUG */
 
     // TODO: Make generic to map directly to INDEX
-    BYTE abyDataBuffer[] = { bySlaveID, READ_ADC_CMD };
+    BYTE abyDataBuffer[] = { bySlaveID, DO_READ_ADC_CMD };
 
     scTransmit((BYTE *)&abyDataBuffer, sizeof(abyDataBuffer));
 }
@@ -405,12 +517,79 @@ static void scReqSlaveBuffer(BYTE bySlaveID, BYTE byBuffer)
 
 /*----------------------------------------------------------------------------
 
-@Prototype: static void scReqSlaveBuffer(BYTE bySlaveID, BYTE byBuffer)
+@Prototype: static void scReqSlavePositionBuffer()
 
-@Description: Request ADC buffers from slave registered to ID
+@Description: Request position buffer from all slaves
 
-@Parameters: BYTE bySlaveID 
-             BYTE byBuffer
+@Parameters: void
+
+@Returns: void
+
+@Revision History:
+DATE             NAME               REVISION COMMENT
+06/21/2017       Ali Haidous        Initial Revision
+
+*----------------------------------------------------------------------------*/
+static void scReqSlavePositionBuffer()
+{
+    RECEIVED_MESSAGE stReceivedMessage = {0};
+    BYTE dwPositionTime = 0;
+    BYTE bySlaveIndex = 0;
+    DWORD dwTemp;
+    
+    for(bySlaveIndex = 0; bySlaveIndex < NUMBER_OF_SLAVES; bySlaveIndex++)
+    {
+        scPositionTimerRequest(kabySlaves[bySlaveIndex]);
+
+        if (scfReceive(&stReceivedMessage))
+        {
+            if (stReceivedMessage.Payload[SLAVE_ID_INDEX] == bySlaveIndex)
+            {
+                dwTemp = stReceivedMessage.Payload[SLAVE_ID_INDEX + 1];
+                dwPositionTime += dwTemp << 24;
+                dwTemp = stReceivedMessage.Payload[SLAVE_ID_INDEX + 2];
+                dwPositionTime += dwTemp << 16;
+                dwTemp = stReceivedMessage.Payload[SLAVE_ID_INDEX + 3];
+                dwPositionTime += dwTemp << 8;
+                dwTemp = stReceivedMessage.Payload[SLAVE_ID_INDEX + 4];
+                dwPositionTime += dwTemp << 0;
+                
+                sprintf(charBuffer, "PositionTime:%d\r\n", dwPositionTime);
+                ConsolePutROMString((ROM char*)charBuffer);
+            }
+            else
+            {
+                #ifdef DEBUG
+                sprintf(charBuffer,
+                        "ERROR CASE: Invalid slave ID - Expected:%d | Received:%d\r\n",
+                        bySlaveIndex,
+                        stReceivedMessage.Payload[SLAVE_ID_INDEX]);
+                ConsolePutROMString((ROM char*)charBuffer);
+                #endif /* ifndef DEBUG */
+            }
+        }
+        else
+        {
+            #ifdef DEBUG
+            sprintf(charBuffer,
+                    "ERROR CASE: Timeout waiting for Slave:%d\r\n",
+                    bySlaveIndex);
+            ConsolePutROMString((ROM char*)charBuffer);
+            #endif /* ifndef DEBUG */ 
+        }
+        // Cool down period between slave RX/TX
+        DelayMs(5);
+    }
+}
+
+
+/*----------------------------------------------------------------------------
+
+@Prototype: static void scReqSlaveADCBuffers()
+
+@Description: Request ADC buffers all slaves registered to ID
+
+@Parameters: void
 
 @Returns: void
 
@@ -421,7 +600,7 @@ DATE             NAME               REVISION COMMENT
 *----------------------------------------------------------------------------*/
 static void scReqSlaveADCBuffers()
 {
-    RECEIVED_MESSAGE stReceivedMessage = (RECEIVED_MESSAGE){0};
+    RECEIVED_MESSAGE stReceivedMessage = {0};
     BYTE byBufferIndex;
     BYTE bySlaveIndex;
 
@@ -445,8 +624,8 @@ static void scReqSlaveADCBuffers()
                             case READ_ADC_FAILED:
                                 sprintf(charBuffer,
                                         "Slave Status: Read ADC Failed - SlaveID:%d Buffer:%d\r\n",
-                                         bySlaveIndex,
-                                         byBufferIndex);
+                                        bySlaveIndex,
+                                        byBufferIndex);
                                 ConsolePutROMString((ROM char*)charBuffer);
                                 scPrintPacketToConsole(stReceivedMessage.Payload,
                                                        ADC_VALUE_INDEX);
@@ -540,7 +719,7 @@ static void scPrintPacketToConsole(BYTE * byPacket, BYTE byLength)
     
     for (byIndex = ADC_VALUE_INDEX; byIndex < byLength; byIndex++)
     {
-        sprintf(charBuffer, "%d,", (byPacket[byIndex] << 1));
+        sprintf(charBuffer, "%02x,", (byPacket[byIndex] << 1));
         ConsolePutROMString((ROM char*)charBuffer);
     }
     

@@ -2,11 +2,11 @@
 #define _MASTER_SLAVE_CONFIG_
 
 //TODO: EDIT THIS FOR NUMBER OF TOTAL SLAVES
-#define NUMBER_OF_SLAVES 1
+#define NUMBER_OF_SLAVES 2
 
 
 /* -- DEFINES and ENUMS -- */
-#define CODE_VERSION 12
+#define CODE_VERSION 13
 
 /* Microcontroller defines */
 #define RF_TRANSCEIVER_CHANNEL 25
@@ -17,15 +17,18 @@
 
 /* Rx Buffers */
 #define MAX_PACKET_SIZE 100
+#define POSITION_TIMER_BUFFER_SIZE 6
 
 // Over 6 buffers causes timing issues
-#define TOTAL_RESPONSE_BUFFERS 6
+#define TOTAL_RESPONSE_BUFFERS 5
 
 /* MISC */
 #define BUTTON_ONE 1
 #define BUTTON_TWO 2
 #define UNDEFINED 0
 #define HIGHEST_PRIORITY 7
+#define MODE_JUMPER_ON 0
+#define NO_DELAY 0
 #define ADC_READ_DELAY 8  // In tens of microseconds
 
 /* Timer 1 values */
@@ -76,8 +79,11 @@ enum
 typedef enum
 {
     INVALID_CMD,
-    READ_ADC_CMD,
+    DO_CALIBRATION_CMD,
+    DO_MEASURE_POSITION_CMD,
+    DO_READ_ADC_CMD,
     REQ_BUFFER_CMD,
+    REQ_POSITION_TIMER_CMD,
     REQ_STATUS_CMD
 } COMMANDS_E;
 
@@ -97,8 +103,10 @@ enum
 typedef enum
 {
     INACTIVE,
-    REQ_READ_ADC,
-    REQ_SLAVE_ADC_BUFFERS
+    REQ_DO_READ_ADC,
+    REQ_DO_MEASURE_POSITION,
+    REQ_SLAVE_ADC_BUFFERS,
+    REQ_POSITION_TIMER
 } MASTER_STATES_E;
 
 
