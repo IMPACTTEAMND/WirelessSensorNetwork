@@ -249,9 +249,9 @@ int main(void)
                 LED_2 = 1;
                 if (ButtonPressed() == BUTTON_ONE)
                 {
+                    // Wait ~3 Seconds and count the amount of button presses
                     while (byButtonPressWaitDelay--)
                     {
-                        // Wait ~3 Seconds and count the amount of button presses
                         DelayMs(15);
                         if (ButtonPressed() == BUTTON_ONE)
                         {
@@ -719,7 +719,7 @@ static void scPrintPacketToConsole(BYTE * byPacket, BYTE byLength)
     
     for (byIndex = ADC_VALUE_INDEX; byIndex < byLength; byIndex++)
     {
-        sprintf(charBuffer, "%02x,", (byPacket[byIndex] << 1));
+        sprintf(charBuffer, "%d,", (byPacket[byIndex] << 1));
         ConsolePutROMString((ROM char*)charBuffer);
     }
     

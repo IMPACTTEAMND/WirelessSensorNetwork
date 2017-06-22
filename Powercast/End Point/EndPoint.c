@@ -46,8 +46,8 @@ static BYTE scabyPositionTimerBuffer[POSITION_TIMER_BUFFER_SIZE];
 
 static WORD scawCalibrationRunningAvgValues[50];
 // We will not overflow since we will have only 10 bits in each of 10 ADCs. 1024*10=~11000
-static WORD scwCalibrationMaxThreshold;
-static WORD scwCalibrationRunningAvg;
+volatile static WORD scwCalibrationMaxThreshold;
+volatile static WORD scwCalibrationRunningAvg;
 
 
 /* -- STATIC FUNCTION PROTOTYPES -- */
@@ -360,8 +360,9 @@ static BOOL scfDoReadADC(WORD wSensorChannel)
     {
         wADCValue = scwADCRead(wSensorChannel, ADC_READ_DELAY);
 
-        // As soon a the max threshold is exceeded, take ADC samples of size MAX_PACKET_SIZE*TOTAL_RESPONSE_BUFFERS
-        if (wADCValue > scwCalibrationMaxThreshold)
+        // As soon a the max threshold is exceeded,
+        // take ADC samples of size MAX_PACKET_SIZE*TOTAL_RESPONSE_BUFFERS
+        //if (wADCValue > scwCalibrationMaxThreshold)
         {
             fRetVal = TRUE;
             while (wPacketIndex < MAX_PACKET_SIZE)
