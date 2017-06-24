@@ -57,7 +57,7 @@ static const BYTE kabySlaves[] =
 };
 
 // Used for console
-static char charBuffer[100];
+static char charBuffer[200];
 
 /* -- STATIC FUNCTION PROTOTYPES -- */
 static void scMainInit(void);
@@ -538,8 +538,7 @@ static void scReqSlaveADCBuffers()
 
     for(bySlaveIndex = 0; bySlaveIndex < NUMBER_OF_SLAVES; bySlaveIndex++)
     {
-        sprintf(charBuffer, "\r\nSlaveID:%d\r\n",
-        bySlaveIndex);
+        sprintf(charBuffer, "\r\nSlaveID:%d\r\n", bySlaveIndex);
         ConsolePutROMString((ROM char*)charBuffer);
         for (byBufferIndex = 0; byBufferIndex < TOTAL_RESPONSE_BUFFERS; byBufferIndex++)
         {
@@ -561,13 +560,11 @@ static void scReqSlaveADCBuffers()
                                         bySlaveIndex,
                                         byBufferIndex);
                                 ConsolePutROMString((ROM char*)charBuffer);
-                                scPrintPacketToConsole(stReceivedMessage.Payload,
-                                                       ADC_VALUE_INDEX);
+                                scPrintPacketToConsole(stReceivedMessage.Payload, ADC_VALUE_INDEX);
                                 break;
 
                             case READ_ADC_PASSED:
-                                scPrintPacketToConsole(stReceivedMessage.Payload,
-                                                       MAX_PACKET_SIZE);
+                                scPrintPacketToConsole(stReceivedMessage.Payload, MAX_PACKET_SIZE);
                                 break;
 
                             default:
@@ -642,9 +639,9 @@ static void scPrintPacketToConsole(BYTE * byPacket, BYTE byLength)
 
     #ifdef DEBUG
     sprintf(charBuffer,
-            "Slave:%d Buffer:%d Command:%d MaxThreshold:%d MinThreshold:%d Average:%d Values: ",
+            "Slave:%d Buffer:%d Status:%d MaxThreshold:%d MinThreshold:%d Average:%d Values: ",
             byPacket[SLAVE_ID_INDEX],
-            byPacket[BUFFER_INDEX],
+            byPacket[STATUS_INDEX],
             byPacket[COMMAND_INDEX],
             byPacket[MAX_THRESHOLD_INDEX],
             byPacket[MIN_THRESHOLD_INDEX],

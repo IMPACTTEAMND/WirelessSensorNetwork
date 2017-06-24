@@ -17,7 +17,7 @@
 
 
 // Over 6 buffers causes timing issues
-#define TOTAL_RESPONSE_BUFFERS 8
+#define TOTAL_RESPONSE_BUFFERS 6
 
 /* MISC */
 #define BUTTON_ONE 1
@@ -113,11 +113,11 @@ typedef enum
 typedef enum
 {
     RESERVED,
-    DO_CALIBRATION_CMD,
-    DO_READ_ADC_CMD,
-    DO_MEASURE_POSITION_CMD,
-    REQ_BUFFER_CMD,
-    REQ_POSITION_TIMER_CMD,
+    DO_CALIBRATION_CMD,       // 1
+    DO_READ_ADC_CMD,          // 2
+    DO_MEASURE_POSITION_CMD,  // 3
+    REQ_BUFFER_CMD,           // 4
+    REQ_POSITION_TIMER_CMD,   // 5
     INVALID_CMD
 } COMMANDS_E;
 

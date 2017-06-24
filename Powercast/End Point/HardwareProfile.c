@@ -106,9 +106,9 @@ void BoardInit(void)
     RCFGCAL = 0x0000;	//RTC disabled
     
     //Set up UART1 to read in TX ID
-    U1BRG = 14; 			//baud rate = 16.66kbps
-    U1MODE = 0x0006;		//9-bit, no parity
-	U1STA = 0x0000;			//interrupt after 1 byte received
+    //U1BRG = 14; 			//baud rate = 16.66kbps
+    //U1MODE = 0x0006;		//9-bit, no parity
+	//U1STA = 0x0000;			//interrupt after 1 byte received
     
     //Set transceiver I/O
     PHY_CS_TRIS = 0;
@@ -130,8 +130,6 @@ void BoardInit(void)
      	SPI1CON1 = 0b0000000100111110;
     #endif
 
-	
-
     INTCON2bits.INT1EP = 1;
 
     RFIF = 0;
@@ -151,7 +149,7 @@ void BoardInit(void)
     
     //Set Board I/O
     SENS_PWR_TRIS = 0;
-    SENS_PWR = 0;			// enable sensors at startup
+    //SENS_PWR = 0;			// enable sensors at startup
     
     //Dip Switch pins set up as inputs for reading ID
     ID1_TRIS = 1;

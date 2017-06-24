@@ -34,10 +34,8 @@
 #define UNIQUE_SLAVE SLAVE_0_ID
 
 /* -- GLOBAL VARIABLES -- */
-volatile DWORD gdwADCTicks;
-volatile DWORD gdwCalibrationTicks;
-volatile DWORD gqwPositionTicks;
-volatile DWORD gqwTempTicks;
+volatile QWORD gqwTicks;
+volatile QWORD gqwTempTicks;
 
 /* -- STATIC VARIABLES -- */
 static BYTE scbySlaveStatus;
@@ -53,7 +51,7 @@ static WORD scwCalibrationSampleAvg;
 /* -- STATIC FUNCTION PROTOTYPES -- */
 static void scMainInit(void);
 static void scTimerInterruptInit (void);
-static void scTransmit(BYTE byLength, BYTE * pbyBuffer);
+static void scTransmit(BYTE * pbyBuffer, BYTE byLength);
 static BOOL scfReceive(RECEIVED_MESSAGE *stReceiveMessageBuffer);
 static WORD scwADCRead(WORD wADCChannel, WORD wDelay);
 static void scDoCalibrateSensor(WORD wSensorChannel);
@@ -72,16 +70,13 @@ static void scDoMeasurePosition(WORD wADCChannel);
 *
 * Side Effects:     none
 *
-* Overview:         Interrupt function for Timer1.  Set up to time out
-*                   after 100 us, updates total time
+* Overview:         Interrupt function for Timer1
 *
 * Note:
 **********************************************************************/
 void _ISRFAST __attribute__((interrupt, auto_psv)) _T1Interrupt(void)
 {
-    gdwADCTicks++;
-    gdwCalibrationTicks++;
-    gqwPositionTicks++;
+    gqwTicks++;
 
     _T1IF = 0;  // Clear Timer 1 interrupt flag
     TMR1 = PULSES;
@@ -157,9 +152,7 @@ static void scMainInit(void)
 
     /* Initialize static variables */
     scbySlaveStatus = INVALID_STATUS;
-    gdwADCTicks = 0;
-    gdwCalibrationTicks = 0;
-    gqwPositionTicks = 0;
+    gqwTicks = 0;
     gqwTempTicks = 0;
     
     scwCalibrationMaxThreshold = 0;
@@ -223,8 +216,6 @@ int main(void)
                 break;
             
             case DO_MEASURE_POSITION_CMD:
-                gqwPositionTicks = 1;
-                gqwTempTicks = 1;
                 scDoMeasurePosition(ANALOG_CHANNEL);
                 eSlaveCommand = INVALID_CMD;
                 break;
@@ -248,7 +239,6 @@ int main(void)
                 break;
 
             case REQ_BUFFER_CMD:
-                scaabyResponseBuffer[byBufferIndex][COMMAND_INDEX] = eSlaveCommand;
                 byBufferIndex = stReceivedMessage.Payload[BUFFER_INDEX];
                 scaabyResponseBuffer[byBufferIndex][MAX_THRESHOLD_INDEX] = (BYTE)(scwCalibrationMaxThreshold >> 1);
                 scaabyResponseBuffer[byBufferIndex][MIN_THRESHOLD_INDEX] = (BYTE)(scwCalibrationMinThreshold >> 1);
@@ -256,11 +246,11 @@ int main(void)
                     
                 if (scbySlaveStatus == READ_ADC_PASSED)
                 {
-                    scTransmit(MAX_PACKET_SIZE, &scaabyResponseBuffer[byBufferIndex][0]);
+                    scTransmit(scaabyResponseBuffer[byBufferIndex], MAX_PACKET_SIZE);
                 }
                 else
                 {
-                    scTransmit(ADC_VALUE_INDEX, &scaabyResponseBuffer[byBufferIndex][0]);
+                    scTransmit(scaabyResponseBuffer[byBufferIndex], ADC_VALUE_INDEX);
                 }
                 
                 scaabyResponseBuffer[byBufferIndex][STATUS_INDEX] = INVALID_STATUS;
@@ -273,7 +263,8 @@ int main(void)
                 scabyPositionTimerBuffer[MAX_INDEX] = (BYTE)(scwCalibrationMaxThreshold >> 1);
                 scabyPositionTimerBuffer[MIN_INDEX] = (BYTE)(scwCalibrationMinThreshold >> 1);
                 scabyPositionTimerBuffer[AVER_INDEX] = (BYTE)(scwCalibrationSampleAvg >> 1);
-                scTransmit(POSITION_TIMER_BUFFER_SIZE, &scabyPositionTimerBuffer[0]);
+                scTransmit(scabyPositionTimerBuffer, POSITION_TIMER_BUFFER_SIZE);
+                
                 eSlaveCommand = INVALID_CMD;
                 break;
                 
@@ -290,10 +281,6 @@ int main(void)
                     {
                         stReceivedMessage = (RECEIVED_MESSAGE) {0};
                     }
-                }
-                else if(MODE != MODE_JUMPER_ON)
-                {
-                    eSlaveCommand = DO_CALIBRATION_CMD;
                 }
                 break;
         }
@@ -322,7 +309,9 @@ static void scDoMeasurePosition(WORD wSensorChannel)
 {
     WORD wADCValue = 0;
     
-    while (gqwPositionTicks < THIRTY_SEC)
+    // reset timer
+    gqwTicks = 0;
+    while (1==1)
     {
         wADCValue = scwADCRead(wSensorChannel, ADC_READ_DELAY);
         
@@ -330,7 +319,7 @@ static void scDoMeasurePosition(WORD wSensorChannel)
         if ((wADCValue > scwCalibrationMaxThreshold) ||
             (wADCValue < scwCalibrationMinThreshold))
         {
-            gqwTempTicks = gqwPositionTicks;
+            gqwTempTicks = gqwTicks;
             break;
         }
         // Break out of loop user input
@@ -373,10 +362,9 @@ static BOOL scfDoReadADC(WORD wSensorChannel)
     WORD wPacketIndex = ADC_VALUE_INDEX;
     BYTE byBuffers = 0;
 
-    // Reset ADC Timer
-    gdwADCTicks = 0;
-
-    while (gdwADCTicks < TIME_TO_MEASURE_ADC_SLAVE)
+    // Reset timer
+    gqwTicks = 0;
+    while (gqwTicks < TIME_TO_MEASURE_ADC_SLAVE)
     {
         wADCValue = scwADCRead(wSensorChannel, ADC_READ_DELAY);
 
@@ -432,8 +420,9 @@ static void scDoCalibrateSensor(WORD wSensorChannel)
     scwCalibrationMinThreshold = 0xFFFF;
     scwCalibrationSampleAvg = 0;
     
-    gdwCalibrationTicks = 0;
-    while (gdwCalibrationTicks < ONE_SEC)
+    // reset timer
+    gqwTicks = 0;
+    while (gqwTicks < ONE_SEC)
     {
         wPresentADCValue = scwADCRead(wSensorChannel, ADC_READ_DELAY);
 
@@ -455,7 +444,7 @@ static void scDoCalibrateSensor(WORD wSensorChannel)
 
 /*----------------------------------------------------------------------------
 
-@Prototype: static void scTransmit(BYTE byLength, BYTE * pbyBuffer)
+@Prototype: static void scTransmit(BYTE * pbyBuffer, BYTE byLength)
 
 @Description: Tx Buffer
 
@@ -469,7 +458,7 @@ DATE             NAME               REVISION COMMENT
 06/21/2017       Ali Haidous        Initial Revision
 
 *----------------------------------------------------------------------------*/
-static void scTransmit(BYTE byLength, BYTE * pbyBuffer)
+static void scTransmit(BYTE * pbyBuffer, BYTE byLength)
 {
     BYTE byI;
 
