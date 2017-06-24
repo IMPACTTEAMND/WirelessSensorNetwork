@@ -63,9 +63,7 @@ static char charBuffer[100];
 static void scMainInit(void);
 static void scTransmit(BYTE *pbyTxBuffer, BYTE byLength);
 static BOOL scfReceive(RECEIVED_MESSAGE *stReceiveMessageBuffer);
-static void scADCRequest(BYTE bySlaveID);
-static void scPositionMeasurementRequest(BYTE bySlaveID);
-static void scPositionTimerRequest(BYTE bySlaveID);
+static void scDoCommand(BYTE bySlaveID, BYTE byCommand);
 static void scReqSlaveBuffer(BYTE bySlaveID, BYTE byBuffer);
 static void scReqSlaveADCBuffers();
 static void scReqSlavePositionBuffer();
@@ -203,7 +201,7 @@ DATE             NAME               REVISION COMMENT
 *----------------------------------------------------------------------------*/
 int main(void)
 {
-    MASTER_STATES_E eMasterStates = INACTIVE;
+    COMMANDS_E eMasterCommands = INVALID_CMD;
     BYTE byButtonPressCount = 0;
     BYTE byButtonPressWaitDelay = 0xFF;
     
@@ -215,34 +213,38 @@ int main(void)
            It should be called as often as possible. */
         P2PTasks();
 
-        switch(eMasterStates)
+        switch(eMasterCommands)
         {
-            case REQ_DO_READ_ADC:
-               scADCRequest(GLOBAL_ID);
+            case DO_CALIBRATION_CMD:
+                scDoCommand(GLOBAL_ID, DO_CALIBRATION_CMD);
+                eMasterCommands = INVALID_CMD;
+                break;
+                
+            case DO_READ_ADC_CMD:
+               scDoCommand(GLOBAL_ID, DO_READ_ADC_CMD);
 
                gdwADCTicks = 0;
                while (gdwADCTicks < TIME_TO_MEASURE_ADC_MASTER);
 
-               eMasterStates = INACTIVE;
+               eMasterCommands = INVALID_CMD;
                break;
-
-            case REQ_SLAVE_ADC_BUFFERS:
-                scReqSlaveADCBuffers();
-                
-                eMasterStates = INACTIVE;
+            
+            case DO_MEASURE_POSITION_CMD:
+                scDoCommand(GLOBAL_ID, DO_MEASURE_POSITION_CMD);
+                eMasterCommands = INVALID_CMD;
                 break;
             
-            case REQ_DO_MEASURE_POSITION:
-                scPositionMeasurementRequest(GLOBAL_ID);
-                eMasterStates = INACTIVE;
-                break;
+            case REQ_BUFFER_CMD:
+                scReqSlaveADCBuffers();
+                eMasterCommands = INVALID_CMD;
+                break; 
                 
-            case REQ_POSITION_TIMER:
+            case REQ_POSITION_TIMER_CMD:
                 scReqSlavePositionBuffer();
-                eMasterStates = INACTIVE;
+                eMasterCommands = INVALID_CMD;
                 break;                
                 
-            case INACTIVE:
+            case INVALID_CMD:
             default:
                 // Turn OFF LED 1 and 2 to indicate inactive
                 LED_1 = 1;
@@ -261,33 +263,12 @@ int main(void)
                             LED_2 ^= 1;
                         }
                     }
-                    if(byButtonPressCount == 1)
+                    if(byButtonPressCount < INVALID_CMD)
                     {
-                        // Turn ON LED 1 to indicate REQ_DO_READ_ADC
+                        // Turn ON LED 1 to indicate eMasterStates
                         LED_1 = 0;
                         LED_2 = 1;
-                        eMasterStates = REQ_DO_READ_ADC;
-                    }
-                    else if(byButtonPressCount == 2)
-                    {
-                        // Turn ON LED 2 to indicate REQ_DO_MEASURE_POSITION
-                        LED_1 = 1;
-                        LED_2 = 0;
-                        eMasterStates = REQ_DO_MEASURE_POSITION;
-                    }
-                    else if(byButtonPressCount == 3)
-                    {
-                        // Turn ON LED 1 and LED 2 to indicate REQ_SLAVE_ADC_BUFFERS
-                        LED_1 = 0;
-                        LED_2 = 0;
-                        eMasterStates = REQ_SLAVE_ADC_BUFFERS;
-                    }
-                    else if(byButtonPressCount == 4)
-                    {
-                        // Turn OFF LED 1 and LED 2 to indicate REQ_POSITION_TIMER
-                        LED_1 = 1;
-                        LED_2 = 1;
-                        eMasterStates = REQ_POSITION_TIMER;
+                        eMasterCommands = byButtonPressCount;
                     }
                     else
                     {
@@ -391,11 +372,12 @@ static BOOL scfReceive(RECEIVED_MESSAGE * stReceiveMessageBuffer)
 
 /*----------------------------------------------------------------------------
 
-@Prototype:  static void scPositionMeasurementRequest(BYTE bySlaveID)
+@Prototype:  static void scDoCommand(BYTE bySlaveID, BYTE byCommand)
 
-@Description: Request position from slave registered to ID
+@Description: Request a command from slave
 
 @Parameters: BYTE bySlaveID
+             BYTE byCommand
 
 @Returns: void
 
@@ -404,79 +386,17 @@ DATE             NAME               REVISION COMMENT
 06/21/2017       Ali Haidous        Initial Revision
 
 *----------------------------------------------------------------------------*/
-static void scPositionMeasurementRequest(BYTE bySlaveID)
+static void scDoCommand(BYTE bySlaveID, BYTE byCommand)
 {
     #ifdef DEBUG
     sprintf(charBuffer,
-            "Position Measurement Request Slave:%d\r\n",
-            bySlaveID);
+            "Slave:%d Command:%d\r\n",
+            bySlaveID,
+            byCommand);
     ConsolePutROMString((ROM char *)charBuffer);
     #endif /* ifndef DEBUG */
 
-    // TODO: Make generic to map directly to INDEX
-    BYTE abyDataBuffer[] = { bySlaveID, DO_MEASURE_POSITION_CMD };
-
-    scTransmit((BYTE *)&abyDataBuffer, sizeof(abyDataBuffer));
-}
-
-
-/*----------------------------------------------------------------------------
-
-@Prototype:  static void scPositionTimerRequest(BYTE bySlaveID)
-
-@Description: Request position from slave registered to ID
-
-@Parameters: BYTE bySlaveID
-
-@Returns: void
-
-@Revision History:
-DATE             NAME               REVISION COMMENT
-06/21/2017       Ali Haidous        Initial Revision
-
-*----------------------------------------------------------------------------*/
-static void scPositionTimerRequest(BYTE bySlaveID)
-{
-    #ifdef DEBUG
-    sprintf(charBuffer,
-            "Position Timer Request Slave:%d\r\n",
-            bySlaveID);
-    ConsolePutROMString((ROM char *)charBuffer);
-    #endif /* ifndef DEBUG */
-
-    // TODO: Make generic to map directly to INDEX
-    BYTE abyDataBuffer[] = { bySlaveID, REQ_POSITION_TIMER_CMD };
-
-    scTransmit((BYTE *)&abyDataBuffer, sizeof(abyDataBuffer));
-}
-
-
-/*----------------------------------------------------------------------------
-
-@Prototype:  static void scADCRequest(BYTE bySlaveID)
-
-@Description: Request ADC from slave registered to ID
-
-@Parameters: BYTE bySlaveID
-
-@Returns: void
-
-@Revision History:
-DATE             NAME               REVISION COMMENT
-04/07/2017       Ali Haidous        Initial Revision
-
-*----------------------------------------------------------------------------*/
-static void scADCRequest(BYTE bySlaveID)
-{
-    #ifdef DEBUG
-    sprintf(charBuffer,
-            "ADC Request Slave:%d\r\n",
-            bySlaveID);
-    ConsolePutROMString((ROM char *)charBuffer);
-    #endif /* ifndef DEBUG */
-
-    // TODO: Make generic to map directly to INDEX
-    BYTE abyDataBuffer[] = { bySlaveID, DO_READ_ADC_CMD };
+    BYTE abyDataBuffer[] = { bySlaveID, byCommand };
 
     scTransmit((BYTE *)&abyDataBuffer, sizeof(abyDataBuffer));
 }
@@ -532,29 +452,41 @@ DATE             NAME               REVISION COMMENT
 *----------------------------------------------------------------------------*/
 static void scReqSlavePositionBuffer()
 {
-    RECEIVED_MESSAGE stReceivedMessage = {0};
-    BYTE dwPositionTime = 0;
+    RECEIVED_MESSAGE stReceivedMessage = (RECEIVED_MESSAGE){0};
     BYTE bySlaveIndex = 0;
-    DWORD dwTemp;
+    QWORD qwTime = 0;
     
     for(bySlaveIndex = 0; bySlaveIndex < NUMBER_OF_SLAVES; bySlaveIndex++)
     {
-        scPositionTimerRequest(kabySlaves[bySlaveIndex]);
+        scDoCommand(kabySlaves[bySlaveIndex], REQ_POSITION_TIMER_CMD);
 
         if (scfReceive(&stReceivedMessage))
         {
             if (stReceivedMessage.Payload[SLAVE_ID_INDEX] == bySlaveIndex)
             {
-                dwTemp = stReceivedMessage.Payload[SLAVE_ID_INDEX + 1];
-                dwPositionTime += dwTemp << 24;
-                dwTemp = stReceivedMessage.Payload[SLAVE_ID_INDEX + 2];
-                dwPositionTime += dwTemp << 16;
-                dwTemp = stReceivedMessage.Payload[SLAVE_ID_INDEX + 3];
-                dwPositionTime += dwTemp << 8;
-                dwTemp = stReceivedMessage.Payload[SLAVE_ID_INDEX + 4];
-                dwPositionTime += dwTemp << 0;
-                
-                sprintf(charBuffer, "PositionTime:%d\r\n", dwPositionTime);
+                qwTime = ((stReceivedMessage.Payload[TICKS_BYTE_1_INDEX] << 56) +
+                          (stReceivedMessage.Payload[TICKS_BYTE_2_INDEX] << 48) +
+                          (stReceivedMessage.Payload[TICKS_BYTE_3_INDEX] << 40) +
+                          (stReceivedMessage.Payload[TICKS_BYTE_4_INDEX] << 32) +
+                          (stReceivedMessage.Payload[TICKS_BYTE_5_INDEX] << 24) +
+                          (stReceivedMessage.Payload[TICKS_BYTE_6_INDEX] << 16) +
+                          (stReceivedMessage.Payload[TICKS_BYTE_7_INDEX] << 8) +
+                          (stReceivedMessage.Payload[TICKS_BYTE_8_INDEX] << 0));
+                sprintf(charBuffer, 
+                        "SlaveID:%d Max:%d Min:%d Ave:%d PositionTime:%llu BYTES:%02x %02x %02x %02x %02x %02x %02x %02x\r\n",
+                        stReceivedMessage.Payload[SLAVE_INDEX],
+                        stReceivedMessage.Payload[MAX_INDEX],
+                        stReceivedMessage.Payload[MIN_INDEX],
+                        stReceivedMessage.Payload[AVER_INDEX],
+                        qwTime,
+                        stReceivedMessage.Payload[TICKS_BYTE_1_INDEX],
+                        stReceivedMessage.Payload[TICKS_BYTE_2_INDEX],
+                        stReceivedMessage.Payload[TICKS_BYTE_3_INDEX],
+                        stReceivedMessage.Payload[TICKS_BYTE_4_INDEX],
+                        stReceivedMessage.Payload[TICKS_BYTE_5_INDEX],
+                        stReceivedMessage.Payload[TICKS_BYTE_6_INDEX],
+                        stReceivedMessage.Payload[TICKS_BYTE_7_INDEX],
+                        stReceivedMessage.Payload[TICKS_BYTE_8_INDEX]);
                 ConsolePutROMString((ROM char*)charBuffer);
             }
             else
@@ -600,7 +532,7 @@ DATE             NAME               REVISION COMMENT
 *----------------------------------------------------------------------------*/
 static void scReqSlaveADCBuffers()
 {
-    RECEIVED_MESSAGE stReceivedMessage = {0};
+    RECEIVED_MESSAGE stReceivedMessage = (RECEIVED_MESSAGE){0};
     BYTE byBufferIndex;
     BYTE bySlaveIndex;
 
@@ -621,9 +553,11 @@ static void scReqSlaveADCBuffers()
                     {
                         switch ((SLAVE_STATUS_E)stReceivedMessage.Payload[STATUS_INDEX])
                         {
+                            case INVALID_STATUS:
                             case READ_ADC_FAILED:
                                 sprintf(charBuffer,
-                                        "Slave Status: Read ADC Failed - SlaveID:%d Buffer:%d\r\n",
+                                        "Slave Status:%d - SlaveID:%d Buffer:%d\r\n",
+                                        stReceivedMessage.Payload[STATUS_INDEX],
                                         bySlaveIndex,
                                         byBufferIndex);
                                 ConsolePutROMString((ROM char*)charBuffer);
@@ -639,7 +573,7 @@ static void scReqSlaveADCBuffers()
                             default:
                                 #ifdef DEBUG
                                 sprintf(charBuffer,
-                                        "ERROR CASE: Invalid Status:%d\r\n",
+                                        "ERROR CASE: Unknown Status:%d\r\n",
                                         stReceivedMessage.Payload[STATUS_INDEX]);
                                 ConsolePutROMString((ROM char *)charBuffer);
                                 #endif
@@ -708,18 +642,19 @@ static void scPrintPacketToConsole(BYTE * byPacket, BYTE byLength)
 
     #ifdef DEBUG
     sprintf(charBuffer,
-            "Slave:%d Buffer:%d Command:%d Threshold:%d Average:%d Values: ",
+            "Slave:%d Buffer:%d Command:%d MaxThreshold:%d MinThreshold:%d Average:%d Values: ",
             byPacket[SLAVE_ID_INDEX],
             byPacket[BUFFER_INDEX],
             byPacket[COMMAND_INDEX],
             byPacket[MAX_THRESHOLD_INDEX],
+            byPacket[MIN_THRESHOLD_INDEX],
             byPacket[AVERAGE_INDEX]);
     ConsolePutROMString((ROM char*)charBuffer);
     #endif 
     
     for (byIndex = ADC_VALUE_INDEX; byIndex < byLength; byIndex++)
     {
-        sprintf(charBuffer, "%d,", (byPacket[byIndex] << 1));
+        sprintf(charBuffer, "%d,", (byPacket[byIndex]));
         ConsolePutROMString((ROM char*)charBuffer);
     }
     

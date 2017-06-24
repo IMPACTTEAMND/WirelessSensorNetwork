@@ -33,21 +33,21 @@
 //TODO: EDIT THIS FOR UNIQUE SLAVE DEVICE
 #define UNIQUE_SLAVE SLAVE_0_ID
 
-
 /* -- GLOBAL VARIABLES -- */
 volatile DWORD gdwADCTicks;
 volatile DWORD gdwCalibrationTicks;
-volatile DWORD gdwPositionTicks;
+volatile DWORD gqwPositionTicks;
+volatile DWORD gqwTempTicks;
 
 /* -- STATIC VARIABLES -- */
 static BYTE scbySlaveStatus;
 static BYTE scaabyResponseBuffer[TOTAL_RESPONSE_BUFFERS][MAX_PACKET_SIZE];
 static BYTE scabyPositionTimerBuffer[POSITION_TIMER_BUFFER_SIZE];
 
-static WORD scawCalibrationRunningAvgValues[50];
 // We will not overflow since we will have only 10 bits in each of 10 ADCs. 1024*10=~11000
-volatile static WORD scwCalibrationMaxThreshold;
-volatile static WORD scwCalibrationRunningAvg;
+static WORD scwCalibrationMaxThreshold;
+static WORD scwCalibrationMinThreshold;
+static WORD scwCalibrationSampleAvg;
 
 
 /* -- STATIC FUNCTION PROTOTYPES -- */
@@ -81,7 +81,8 @@ void _ISRFAST __attribute__((interrupt, auto_psv)) _T1Interrupt(void)
 {
     gdwADCTicks++;
     gdwCalibrationTicks++;
-    gdwPositionTicks++;
+    gqwPositionTicks++;
+
     _T1IF = 0;  // Clear Timer 1 interrupt flag
     TMR1 = PULSES;
     return;
@@ -155,17 +156,15 @@ static void scMainInit(void)
     MiApp_ConnectionMode(ENABLE_ALL_CONN);
 
     /* Initialize static variables */
-    scbySlaveStatus = READ_ADC_FAILED;
+    scbySlaveStatus = INVALID_STATUS;
     gdwADCTicks = 0;
     gdwCalibrationTicks = 0;
-    gdwPositionTicks = 0;
+    gqwPositionTicks = 0;
+    gqwTempTicks = 0;
+    
     scwCalibrationMaxThreshold = 0;
-    scwCalibrationRunningAvg = 0;
-
-    for (byI = 0; byI < (sizeof(scawCalibrationRunningAvgValues)/sizeof(scawCalibrationRunningAvgValues[0])); byI++)
-    {
-        scawCalibrationRunningAvgValues[byI] = 0;
-    }
+    scwCalibrationMinThreshold = 0xFFFF;
+    scwCalibrationSampleAvg = 0;
 
     for (byI = 0; byI < TOTAL_RESPONSE_BUFFERS; byI++)
     {
@@ -173,6 +172,13 @@ static void scMainInit(void)
         {
             scaabyResponseBuffer[byI][byJ] = 0;
         }
+    }
+    
+    for (byI = 0; byI < TOTAL_RESPONSE_BUFFERS; byI++)
+    {
+        scaabyResponseBuffer[byI][SLAVE_ID_INDEX] = UNIQUE_SLAVE;
+        scaabyResponseBuffer[byI][STATUS_INDEX] = scbySlaveStatus;
+        scaabyResponseBuffer[byI][BUFFER_INDEX] = byI;
     }
     
     for (byI = 0; byI < POSITION_TIMER_BUFFER_SIZE; byI++)
@@ -200,7 +206,7 @@ int main(void)
     RECEIVED_MESSAGE stReceivedMessage = (RECEIVED_MESSAGE) {0};
     COMMANDS_E eSlaveCommand = INVALID_CMD;
     BYTE byBufferIndex = 0;
-
+    
     scMainInit();
     
     while(TRUE)
@@ -217,6 +223,8 @@ int main(void)
                 break;
             
             case DO_MEASURE_POSITION_CMD:
+                gqwPositionTicks = 1;
+                gqwTempTicks = 1;
                 scDoMeasurePosition(ANALOG_CHANNEL);
                 eSlaveCommand = INVALID_CMD;
                 break;
@@ -230,17 +238,22 @@ int main(void)
                 {
                     scbySlaveStatus = READ_ADC_FAILED;
                 }
+                
+                for (byBufferIndex = 0; byBufferIndex < TOTAL_RESPONSE_BUFFERS; byBufferIndex++)
+                {
+                    scaabyResponseBuffer[byBufferIndex][STATUS_INDEX] = scbySlaveStatus;
+                }
+
                 eSlaveCommand = INVALID_CMD;
                 break;
 
             case REQ_BUFFER_CMD:
+                scaabyResponseBuffer[byBufferIndex][COMMAND_INDEX] = eSlaveCommand;
                 byBufferIndex = stReceivedMessage.Payload[BUFFER_INDEX];
-                scaabyResponseBuffer[byBufferIndex][SLAVE_ID_INDEX] = UNIQUE_SLAVE;
-                scaabyResponseBuffer[byBufferIndex][STATUS_INDEX] = scbySlaveStatus;
-                scaabyResponseBuffer[byBufferIndex][BUFFER_INDEX] = byBufferIndex;
                 scaabyResponseBuffer[byBufferIndex][MAX_THRESHOLD_INDEX] = (BYTE)(scwCalibrationMaxThreshold >> 1);
-                scaabyResponseBuffer[byBufferIndex][AVERAGE_INDEX] = (BYTE)(scwCalibrationRunningAvg >> 1);
-                
+                scaabyResponseBuffer[byBufferIndex][MIN_THRESHOLD_INDEX] = (BYTE)(scwCalibrationMinThreshold >> 1);
+                scaabyResponseBuffer[byBufferIndex][AVERAGE_INDEX] = (BYTE)(scwCalibrationSampleAvg >> 1);
+                    
                 if (scbySlaveStatus == READ_ADC_PASSED)
                 {
                     scTransmit(MAX_PACKET_SIZE, &scaabyResponseBuffer[byBufferIndex][0]);
@@ -249,11 +262,17 @@ int main(void)
                 {
                     scTransmit(ADC_VALUE_INDEX, &scaabyResponseBuffer[byBufferIndex][0]);
                 }
+                
+                scaabyResponseBuffer[byBufferIndex][STATUS_INDEX] = INVALID_STATUS;
+                
                 eSlaveCommand = INVALID_CMD;
                 break;
                 
             case REQ_POSITION_TIMER_CMD:
-                scabyPositionTimerBuffer[SLAVE_ID_INDEX] = UNIQUE_SLAVE;
+                scabyPositionTimerBuffer[SLAVE_INDEX] = UNIQUE_SLAVE;
+                scabyPositionTimerBuffer[MAX_INDEX] = (BYTE)(scwCalibrationMaxThreshold >> 1);
+                scabyPositionTimerBuffer[MIN_INDEX] = (BYTE)(scwCalibrationMinThreshold >> 1);
+                scabyPositionTimerBuffer[AVER_INDEX] = (BYTE)(scwCalibrationSampleAvg >> 1);
                 scTransmit(POSITION_TIMER_BUFFER_SIZE, &scabyPositionTimerBuffer[0]);
                 eSlaveCommand = INVALID_CMD;
                 break;
@@ -302,19 +321,16 @@ DATE             NAME               REVISION COMMENT
 static void scDoMeasurePosition(WORD wSensorChannel)
 {
     WORD wADCValue = 0;
-    DWORD dwTimer = 0;
-        
-    // Reset position Timer
-    //gdwPositionTicks = 0;
-
-    while (TRUE)
+    
+    while (gqwPositionTicks < THIRTY_SEC)
     {
         wADCValue = scwADCRead(wSensorChannel, ADC_READ_DELAY);
-        dwTimer++;
-        // As soon a the max threshold is exceeded, break
-        if (wADCValue > scwCalibrationMaxThreshold)
+        
+        // As soon a the max or min threshold is exceeded, break
+        if ((wADCValue > scwCalibrationMaxThreshold) ||
+            (wADCValue < scwCalibrationMinThreshold))
         {
-            //dwTimer = gdwPositionTicks;
+            gqwTempTicks = gqwPositionTicks;
             break;
         }
         // Break out of loop user input
@@ -324,10 +340,14 @@ static void scDoMeasurePosition(WORD wSensorChannel)
         }
     }
     
-    scabyPositionTimerBuffer[SLAVE_ID_INDEX + 1] = (BYTE)((dwTimer >> 24) & 0xFF);
-    scabyPositionTimerBuffer[SLAVE_ID_INDEX + 2] = (BYTE)((dwTimer >> 16) & 0xFF);
-    scabyPositionTimerBuffer[SLAVE_ID_INDEX + 3] = (BYTE)((dwTimer >> 8) & 0xFF);
-    scabyPositionTimerBuffer[SLAVE_ID_INDEX + 4] = (BYTE)((dwTimer >> 0) & 0xFF);
+    scabyPositionTimerBuffer[TICKS_BYTE_1_INDEX] = (BYTE)((gqwTempTicks >> 56) & 0xFF);
+    scabyPositionTimerBuffer[TICKS_BYTE_2_INDEX] = (BYTE)((gqwTempTicks >> 48) & 0xFF);
+    scabyPositionTimerBuffer[TICKS_BYTE_3_INDEX] = (BYTE)((gqwTempTicks >> 40) & 0xFF);
+    scabyPositionTimerBuffer[TICKS_BYTE_4_INDEX] = (BYTE)((gqwTempTicks >> 32) & 0xFF);
+    scabyPositionTimerBuffer[TICKS_BYTE_5_INDEX] = (BYTE)((gqwTempTicks >> 24) & 0xFF);
+    scabyPositionTimerBuffer[TICKS_BYTE_6_INDEX] = (BYTE)((gqwTempTicks >> 16) & 0xFF);
+    scabyPositionTimerBuffer[TICKS_BYTE_7_INDEX] = (BYTE)((gqwTempTicks >> 8) & 0xFF);
+    scabyPositionTimerBuffer[TICKS_BYTE_8_INDEX] = (BYTE)((gqwTempTicks >> 0) & 0xFF);
 }
 
 
@@ -360,9 +380,10 @@ static BOOL scfDoReadADC(WORD wSensorChannel)
     {
         wADCValue = scwADCRead(wSensorChannel, ADC_READ_DELAY);
 
-        // As soon a the max threshold is exceeded,
+        // As soon a the max or min threshold is exceeded,
         // take ADC samples of size MAX_PACKET_SIZE*TOTAL_RESPONSE_BUFFERS
-        //if (wADCValue > scwCalibrationMaxThreshold)
+        if ((wADCValue > scwCalibrationMaxThreshold) ||
+            (wADCValue < scwCalibrationMinThreshold))
         {
             fRetVal = TRUE;
             while (wPacketIndex < MAX_PACKET_SIZE)
@@ -389,7 +410,7 @@ static BOOL scfDoReadADC(WORD wSensorChannel)
 
 @Prototype: static void scDoCalibrateSensor(WORD wSensorChannel)
 
-@Description: Calculate running average and max threshold for sensor calibration
+@Description: Calculate sample average and max threshold for sensor calibration
 
 @Parameters: WORD wSensorChannel - The sensor to calibrate
 
@@ -402,50 +423,33 @@ DATE             NAME               REVISION COMMENT
 *----------------------------------------------------------------------------*/
 static void scDoCalibrateSensor(WORD wSensorChannel)
 {
-    // Used for running average calculation
-    BYTE byCurrentCount = 0;
-    BOOL fOnInitial = TRUE;
-    WORD wSum = 0;
-    BYTE byI = 0;
+    WORD wPresentADCValue = 0;
+    QWORD qwSumADCValues = 0;
+    QWORD qwCount = 0;
     
-    WORD wPresentADCValue = scwADCRead(wSensorChannel, ADC_READ_DELAY);
-
+    // Reset calibration values
+    scwCalibrationMaxThreshold = 0;
+    scwCalibrationMinThreshold = 0xFFFF;
+    scwCalibrationSampleAvg = 0;
+    
     gdwCalibrationTicks = 0;
     while (gdwCalibrationTicks < ONE_SEC)
     {
-        // On initial values, to populate the array of running avg
-        if ((byCurrentCount < (sizeof(scawCalibrationRunningAvgValues)/sizeof(scawCalibrationRunningAvgValues[0]))) && fOnInitial)
-        {
-            scawCalibrationRunningAvgValues[byCurrentCount] = wPresentADCValue;
-            byCurrentCount++;
-        }
-        // Reset count to over write oldest values
-        else if (byCurrentCount >= (sizeof(scawCalibrationRunningAvgValues)/sizeof(scawCalibrationRunningAvgValues[0])))
-        {
-            fOnInitial = FALSE;
-            byCurrentCount = 0;
-        }
-        // On values after initial values
-        else
-        {
-            scawCalibrationRunningAvgValues[byCurrentCount] = wPresentADCValue;
-            byCurrentCount++;
-
-            // Sum all the values in the array
-            for (byI = 0; byI < (sizeof(scawCalibrationRunningAvgValues)/sizeof(scawCalibrationRunningAvgValues[0])); byI++)
-            {
-                wSum += scawCalibrationRunningAvgValues[byI];
-            }
-
-            // Calculate the running average
-            scwCalibrationRunningAvg = (wSum / (sizeof(scawCalibrationRunningAvgValues)/sizeof(scawCalibrationRunningAvgValues[0])));
-        }
+        wPresentADCValue = scwADCRead(wSensorChannel, ADC_READ_DELAY);
 
         if (wPresentADCValue > scwCalibrationMaxThreshold)
         {
             scwCalibrationMaxThreshold = wPresentADCValue;
         }
+        else if (wPresentADCValue < scwCalibrationMinThreshold)
+        {
+            scwCalibrationMinThreshold = wPresentADCValue;
+        }
+        qwSumADCValues += wPresentADCValue;
+        qwCount++;
     }
+    
+    scwCalibrationSampleAvg = (WORD)(qwSumADCValues/qwCount);
 }
 
 
@@ -533,21 +537,20 @@ DATE             NAME               REVISION COMMENT
 *----------------------------------------------------------------------------*/
 static WORD scwADCRead(WORD wADCChannel, WORD wDelay)
 {
-    BYTE byI;
     WORD wADCVal = 0;
 
-    SPI1STAT = 0x0000;  // Disable SPI bus to read ADC
+    //SPI1STAT = 0x0000;  // Disable SPI bus to read ADC
 
     AD1CHS = wADCChannel;           // set channel to measure
     _ADON = 1;        // turn ADC on for taking readings
-    for (byI = 0; byI < 50; byI++);  // wait for ADC to initialize
-    Delay10us(wDelay);
     _SAMP = 1;       // start sampling
+    Delay10us(wDelay);
+    _SAMP = 0;       // stop sampling
     while (!_DONE);  // wait for ADC to complete
     wADCVal = ADC1BUF0;
     _ADON = 0;       // turn ADC off for before taking next reading
 
-    SPI1STAT = 0x8000;  // Enable SPI bus to talk radio
+    //SPI1STAT = 0x8000;  // Enable SPI bus to talk radio
 
     return wADCVal;
 }

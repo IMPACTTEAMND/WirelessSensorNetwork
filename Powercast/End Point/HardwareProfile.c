@@ -90,11 +90,11 @@ _FDS(DSWDTEN_OFF & DSBOREN_OFF)
 void BoardInit(void)
 {
 	//Setup ADC for reading sensor inputs
-	AD1CON1 = 0x00E0;   //Autoconvert, manual Sample
+	AD1CON1 = 0x0000;   //Autoconvert, manual Sample
 	AD1CON2 = 0x0000;   //int ref, 16-word buffer, mux A
     AD1CON3 = 0x1F00;	//SAMC = 31 TAD for all reads
-    AD1PCFG = 0x1C10;	//AN4,10,11,12 set as digital
-    					//AN0,1,2,3,5 set as analog
+    AD1PCFG = 0xFFFB;	//AN1,3,4,5,10,11,12 set as digital
+    					//AN2 set as analog
     
     //Turn off other peripherals
     CTMUCON = 0x0000;	//CTMU disabled
