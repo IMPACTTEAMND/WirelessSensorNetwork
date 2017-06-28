@@ -274,7 +274,7 @@ int main(void)
                     {
                         #ifdef DEBUG
                         sprintf(charBuffer,
-                                "Too many button presses:%d\r\n",
+                                "Too many button presses:%u\r\n",
                                 byButtonPressCount);
                         ConsolePutROMString((ROM char *)charBuffer);
                         #endif /* ifndef DEBUG */
@@ -390,7 +390,7 @@ static void scDoCommand(BYTE bySlaveID, BYTE byCommand)
 {
     #ifdef DEBUG
     sprintf(charBuffer,
-            "Slave:%d Command:%d\r\n",
+            "Slave:%u Command:%u\r\n",
             bySlaveID,
             byCommand);
     ConsolePutROMString((ROM char *)charBuffer);
@@ -422,7 +422,7 @@ static void scReqSlaveBuffer(BYTE bySlaveID, BYTE byBuffer)
 {
     #ifdef DEBUG
     sprintf(charBuffer,
-            "Request Slave:%d Buffer:%d\r\n",
+            "Request Slave:%u Buffer:%u\r\n",
             bySlaveID,
             byBuffer);
     ConsolePutROMString((ROM char*)charBuffer);
@@ -455,6 +455,9 @@ static void scReqSlavePositionBuffer()
     RECEIVED_MESSAGE stReceivedMessage = (RECEIVED_MESSAGE){0};
     BYTE bySlaveIndex = 0;
     QWORD qwTime = 0;
+    WORD wMax = 0;
+    WORD wMin = 0;
+    WORD wAvg = 0;
     
     for(bySlaveIndex = 0; bySlaveIndex < NUMBER_OF_SLAVES; bySlaveIndex++)
     {
@@ -464,6 +467,12 @@ static void scReqSlavePositionBuffer()
         {
             if (stReceivedMessage.Payload[SLAVE_ID_INDEX] == bySlaveIndex)
             {
+                wMax = ((stReceivedMessage.Payload[MAX_INDEX_H] << 8) +
+                        (stReceivedMessage.Payload[MAX_INDEX_L] << 0));
+                wMin = ((stReceivedMessage.Payload[MIN_INDEX_H] << 8) +
+                        (stReceivedMessage.Payload[MIN_INDEX_L] << 0));
+                wAvg = ((stReceivedMessage.Payload[AVER_INDEX_H] << 8) +
+                        (stReceivedMessage.Payload[AVER_INDEX_L] << 0));
                 qwTime = ((stReceivedMessage.Payload[TICKS_BYTE_1_INDEX] << 56) +
                           (stReceivedMessage.Payload[TICKS_BYTE_2_INDEX] << 48) +
                           (stReceivedMessage.Payload[TICKS_BYTE_3_INDEX] << 40) +
@@ -473,27 +482,19 @@ static void scReqSlavePositionBuffer()
                           (stReceivedMessage.Payload[TICKS_BYTE_7_INDEX] << 8) +
                           (stReceivedMessage.Payload[TICKS_BYTE_8_INDEX] << 0));
                 sprintf(charBuffer, 
-                        "SlaveID:%d Max:%d Min:%d Ave:%d PositionTime:%llu BYTES:%02x %02x %02x %02x %02x %02x %02x %02x\r\n",
+                        "SlaveID:%u Max:%u Min:%u Ave:%u PositionTime:%llu\r\n",
                         stReceivedMessage.Payload[SLAVE_INDEX],
-                        stReceivedMessage.Payload[MAX_INDEX],
-                        stReceivedMessage.Payload[MIN_INDEX],
-                        stReceivedMessage.Payload[AVER_INDEX],
-                        qwTime,
-                        stReceivedMessage.Payload[TICKS_BYTE_1_INDEX],
-                        stReceivedMessage.Payload[TICKS_BYTE_2_INDEX],
-                        stReceivedMessage.Payload[TICKS_BYTE_3_INDEX],
-                        stReceivedMessage.Payload[TICKS_BYTE_4_INDEX],
-                        stReceivedMessage.Payload[TICKS_BYTE_5_INDEX],
-                        stReceivedMessage.Payload[TICKS_BYTE_6_INDEX],
-                        stReceivedMessage.Payload[TICKS_BYTE_7_INDEX],
-                        stReceivedMessage.Payload[TICKS_BYTE_8_INDEX]);
+                        wMax,
+                        wMin,
+                        wAvg,
+                        qwTime);
                 ConsolePutROMString((ROM char*)charBuffer);
             }
             else
             {
                 #ifdef DEBUG
                 sprintf(charBuffer,
-                        "ERROR CASE: Invalid slave ID - Expected:%d | Received:%d\r\n",
+                        "ERROR CASE: Invalid slave ID - Expected:%u | Received:%u\r\n",
                         bySlaveIndex,
                         stReceivedMessage.Payload[SLAVE_ID_INDEX]);
                 ConsolePutROMString((ROM char*)charBuffer);
@@ -504,7 +505,7 @@ static void scReqSlavePositionBuffer()
         {
             #ifdef DEBUG
             sprintf(charBuffer,
-                    "ERROR CASE: Timeout waiting for Slave:%d\r\n",
+                    "ERROR CASE: Timeout waiting for Slave:%u\r\n",
                     bySlaveIndex);
             ConsolePutROMString((ROM char*)charBuffer);
             #endif /* ifndef DEBUG */ 
@@ -538,7 +539,7 @@ static void scReqSlaveADCBuffers()
 
     for(bySlaveIndex = 0; bySlaveIndex < NUMBER_OF_SLAVES; bySlaveIndex++)
     {
-        sprintf(charBuffer, "\r\nSlaveID:%d\r\n", bySlaveIndex);
+        sprintf(charBuffer, "\r\nSlaveID:%u\r\n", bySlaveIndex);
         ConsolePutROMString((ROM char*)charBuffer);
         for (byBufferIndex = 0; byBufferIndex < TOTAL_RESPONSE_BUFFERS; byBufferIndex++)
         {
@@ -555,12 +556,12 @@ static void scReqSlaveADCBuffers()
                             case INVALID_STATUS:
                             case READ_ADC_FAILED:
                                 sprintf(charBuffer,
-                                        "Slave Status:%d - SlaveID:%d Buffer:%d\r\n",
+                                        "Slave Status:%u - SlaveID:%u Buffer:%u\r\n",
                                         stReceivedMessage.Payload[STATUS_INDEX],
                                         bySlaveIndex,
                                         byBufferIndex);
                                 ConsolePutROMString((ROM char*)charBuffer);
-                                scPrintPacketToConsole(stReceivedMessage.Payload, ADC_VALUE_INDEX);
+                                scPrintPacketToConsole(stReceivedMessage.Payload, ADC_VALUE_INDEX_H);
                                 break;
 
                             case READ_ADC_PASSED:
@@ -570,7 +571,7 @@ static void scReqSlaveADCBuffers()
                             default:
                                 #ifdef DEBUG
                                 sprintf(charBuffer,
-                                        "ERROR CASE: Unknown Status:%d\r\n",
+                                        "ERROR CASE: Unknown Status:%u\r\n",
                                         stReceivedMessage.Payload[STATUS_INDEX]);
                                 ConsolePutROMString((ROM char *)charBuffer);
                                 #endif
@@ -581,7 +582,7 @@ static void scReqSlaveADCBuffers()
                     {
                         #ifdef DEBUG
                         sprintf(charBuffer,
-                                "ERROR CASE: Invalid buffer index - Expected:%d | Received:%d\r\n",
+                                "ERROR CASE: Invalid buffer index - Expected:%u | Received:%u\r\n",
                                 byBufferIndex,
                                 stReceivedMessage.Payload[BUFFER_INDEX]);
                         ConsolePutROMString((ROM char*)charBuffer);
@@ -592,7 +593,7 @@ static void scReqSlaveADCBuffers()
                 {
                     #ifdef DEBUG
                     sprintf(charBuffer,
-                            "ERROR CASE: Invalid slave ID - Expected:%d | Received:%d\r\n",
+                            "ERROR CASE: Invalid slave ID - Expected:%u | Received:%u\r\n",
                             bySlaveIndex,
                             stReceivedMessage.Payload[SLAVE_ID_INDEX]);
                     ConsolePutROMString((ROM char*)charBuffer);
@@ -603,7 +604,7 @@ static void scReqSlaveADCBuffers()
             {
                 #ifdef DEBUG
                 sprintf(charBuffer,
-                        "ERROR CASE: Timeout waiting for Slave:%d Buffer:%d\r\n",
+                        "ERROR CASE: Timeout waiting for Slave:%u Buffer:%u\r\n",
                         bySlaveIndex,
                         byBufferIndex);
                 ConsolePutROMString((ROM char*)charBuffer);
@@ -636,22 +637,35 @@ DATE             NAME               REVISION COMMENT
 static void scPrintPacketToConsole(BYTE * byPacket, BYTE byLength)
 {
     BYTE byIndex;
-
+    WORD wMax = 0;
+    WORD wMin = 0;
+    WORD wAvg = 0;
+    WORD wAdcVal = 0;
+    
+    wMax = ((byPacket[MAX_THRESHOLD_INDEX_H] << 8) +
+            (byPacket[MAX_THRESHOLD_INDEX_L] << 0));
+    wMin = ((byPacket[MIN_THRESHOLD_INDEX_H] << 8) +
+            (byPacket[MIN_THRESHOLD_INDEX_L] << 0));
+    wAvg = ((byPacket[AVERAGE_INDEX_H] << 8) +
+            (byPacket[AVERAGE_INDEX_L] << 0));
+    
     #ifdef DEBUG
     sprintf(charBuffer,
-            "Slave:%d Buffer:%d Status:%d MaxThreshold:%d MinThreshold:%d Average:%d Values: ",
+            "Slave:%u Buffer:%u Status:%u MaxThreshold:%u MinThreshold:%u Average:%u Values: ",
             byPacket[SLAVE_ID_INDEX],
             byPacket[STATUS_INDEX],
             byPacket[COMMAND_INDEX],
-            byPacket[MAX_THRESHOLD_INDEX],
-            byPacket[MIN_THRESHOLD_INDEX],
-            byPacket[AVERAGE_INDEX]);
+            wMax,
+            wMin,
+            wAvg);
     ConsolePutROMString((ROM char*)charBuffer);
     #endif 
     
-    for (byIndex = ADC_VALUE_INDEX; byIndex < byLength; byIndex++)
+    for (byIndex = ADC_VALUE_INDEX_H; byIndex < byLength; byIndex+=2)
     {
-        sprintf(charBuffer, "%d,", (byPacket[byIndex]));
+        wAdcVal = ((byPacket[ADC_VALUE_INDEX_H + byIndex] << 8) +
+                   (byPacket[ADC_VALUE_INDEX_L + byIndex] << 0));
+        sprintf(charBuffer, "%u,", wAdcVal);
         ConsolePutROMString((ROM char*)charBuffer);
     }
     
