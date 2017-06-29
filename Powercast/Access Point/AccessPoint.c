@@ -35,10 +35,8 @@
 /* Comment/Uncomment to enable/disable debug/*/
 #define DEBUG
 
-
 /* -- GLOBAL VARIABLES -- */
-volatile DWORD gdwRxTicks;
-volatile DWORD gdwADCTicks;
+volatile WORD_BYTE_U gvuwTimer;
 
 /* -- STATIC VARIABLES -- */
 static const BYTE kabySlaves[] = 
@@ -88,11 +86,10 @@ static void scPrintPacketToConsole(BYTE * byPacket, BYTE byLength);
 **********************************************************************/
 void _ISRFAST __attribute__((interrupt, auto_psv)) _T1Interrupt(void)
 {
-    gdwRxTicks++;
-    gdwADCTicks++;
     _T1IF = 0;  // Clear Timer 1 interrupt flag
     TMR1 = PULSES;
-    return;
+    
+    gvuwTimer.wOrd++;
 }
 
 
@@ -111,11 +108,12 @@ DATE             NAME               REVISION COMMENT
 *----------------------------------------------------------------------------*/
 static void scTimerInterruptInit (void)
 {
-    T1CON = 0x0000; // stops the timer1 and reset control flag
-    TMR1 = PULSES;          
-    _T1IP = HIGHEST_PRIORITY;     // setup Timer1 interrupt for desired priority level
-    _T1IE = 1; // enable Timer1 interrupts
-    T1CON = 0x8010; // enable timer1 with prescalar of 1:8
+	// Set up Timer1
+  	T1CON = 0x0000; 		// stops the timer1 and reset control flag
+  	TMR1 = PULSES;
+  	IPC0bits.T1IP = HIGHEST_PRIORITY; 	// setup Timer1 interrupt for desired priority level
+	IEC0bits.T1IE = 1; 		// enable Timer1 interrupts	
+	T1CON = 0x8010;		 	// enable timer1 with prescalar of 1:8 
 }
 
 
@@ -181,8 +179,7 @@ static void scMainInit(void)
     MiApp_ConnectionMode(ENABLE_ALL_CONN);
     
     /* Initialize global and static variables */
-    gdwRxTicks = 0;
-    gdwADCTicks = 0;
+    gvuwTimer.wOrd = 0;
 }
 
 
@@ -223,8 +220,8 @@ int main(void)
             case DO_READ_ADC_CMD:
                scDoCommand(GLOBAL_ID, DO_READ_ADC_CMD);
 
-               gdwADCTicks = 0;
-               while (gdwADCTicks < TIME_TO_MEASURE_ADC_MASTER);
+               gvuwTimer.wOrd = 0;
+               while (gvuwTimer.wOrd < TIME_TO_MEASURE_ADC_MASTER);
 
                eMasterCommands = INVALID_CMD;
                break;
@@ -348,10 +345,8 @@ static BOOL scfReceive(RECEIVED_MESSAGE * stReceiveMessageBuffer)
 {
     BOOL fRetVal = FALSE;
 
-    // Reset Rx timer
-    gdwRxTicks = 0;
-    
-    while (gdwRxTicks < FIVE_HUNDRED_MS)
+    gvuwTimer.wOrd = 0;
+    while (gvuwTimer.wOrd < FIVE_HUNDRED_MS)
     {
         if (MiApp_MessageAvailable())
         {
@@ -454,10 +449,11 @@ static void scReqSlavePositionBuffer()
 {
     RECEIVED_MESSAGE stReceivedMessage = (RECEIVED_MESSAGE){0};
     BYTE bySlaveIndex = 0;
-    QWORD qwTime = 0;
-    WORD wMax = 0;
-    WORD wMin = 0;
-    WORD wAvg = 0;
+    WORD_BYTE_U uwMax;
+    WORD_BYTE_U uwMin;
+    WORD_BYTE_U uwAvg;
+    WORD_BYTE_U uwTime;
+    WORD_BYTE_U uwTicks;
     
     for(bySlaveIndex = 0; bySlaveIndex < NUMBER_OF_SLAVES; bySlaveIndex++)
     {
@@ -467,27 +463,25 @@ static void scReqSlavePositionBuffer()
         {
             if (stReceivedMessage.Payload[SLAVE_ID_INDEX] == bySlaveIndex)
             {
-                wMax = ((stReceivedMessage.Payload[MAX_INDEX_H] << 8) +
-                        (stReceivedMessage.Payload[MAX_INDEX_L] << 0));
-                wMin = ((stReceivedMessage.Payload[MIN_INDEX_H] << 8) +
-                        (stReceivedMessage.Payload[MIN_INDEX_L] << 0));
-                wAvg = ((stReceivedMessage.Payload[AVER_INDEX_H] << 8) +
-                        (stReceivedMessage.Payload[AVER_INDEX_L] << 0));
-                qwTime = ((stReceivedMessage.Payload[TICKS_BYTE_1_INDEX] << 56) +
-                          (stReceivedMessage.Payload[TICKS_BYTE_2_INDEX] << 48) +
-                          (stReceivedMessage.Payload[TICKS_BYTE_3_INDEX] << 40) +
-                          (stReceivedMessage.Payload[TICKS_BYTE_4_INDEX] << 32) +
-                          (stReceivedMessage.Payload[TICKS_BYTE_5_INDEX] << 24) +
-                          (stReceivedMessage.Payload[TICKS_BYTE_6_INDEX] << 16) +
-                          (stReceivedMessage.Payload[TICKS_BYTE_7_INDEX] << 8) +
-                          (stReceivedMessage.Payload[TICKS_BYTE_8_INDEX] << 0));
+                uwMax.abyTe[0] = stReceivedMessage.Payload[MAX_INDEX_L];
+                uwMax.abyTe[1] = stReceivedMessage.Payload[MAX_INDEX_H];
+                uwMin.abyTe[0] = stReceivedMessage.Payload[MIN_INDEX_L];
+                uwMin.abyTe[1] = stReceivedMessage.Payload[MIN_INDEX_H];
+                uwAvg.abyTe[0] = stReceivedMessage.Payload[AVER_INDEX_L];
+                uwAvg.abyTe[1] = stReceivedMessage.Payload[AVER_INDEX_H];
+                uwTime.abyTe[0] = stReceivedMessage.Payload[TIME_INDEX_L];
+                uwTime.abyTe[1] = stReceivedMessage.Payload[TIME_INDEX_H];
+                uwTicks.abyTe[0] = stReceivedMessage.Payload[TICKS_INDEX_L];
+                uwTicks.abyTe[1] = stReceivedMessage.Payload[TICKS_INDEX_H];
+                 
                 sprintf(charBuffer, 
-                        "SlaveID:%u Max:%u Min:%u Ave:%u PositionTime:%llu\r\n",
+                        "SlaveID:%u Max:%u Min:%u Ave:%u Time:%u PosTicks:%u\r\n",
                         stReceivedMessage.Payload[SLAVE_INDEX],
-                        wMax,
-                        wMin,
-                        wAvg,
-                        qwTime);
+                        uwMax.wOrd,
+                        uwMin.wOrd,
+                        uwAvg.wOrd,
+                        uwTime.wOrd,
+                        uwTicks.wOrd);
                 ConsolePutROMString((ROM char*)charBuffer);
             }
             else
@@ -637,35 +631,36 @@ DATE             NAME               REVISION COMMENT
 static void scPrintPacketToConsole(BYTE * byPacket, BYTE byLength)
 {
     BYTE byIndex;
-    WORD wMax = 0;
-    WORD wMin = 0;
-    WORD wAvg = 0;
-    WORD wAdcVal = 0;
+    WORD_BYTE_U uwMax;
+    WORD_BYTE_U uwMin;
+    WORD_BYTE_U uwAvg;
+    WORD_BYTE_U uwAdcVal;
     
-    wMax = ((byPacket[MAX_THRESHOLD_INDEX_H] << 8) +
-            (byPacket[MAX_THRESHOLD_INDEX_L] << 0));
-    wMin = ((byPacket[MIN_THRESHOLD_INDEX_H] << 8) +
-            (byPacket[MIN_THRESHOLD_INDEX_L] << 0));
-    wAvg = ((byPacket[AVERAGE_INDEX_H] << 8) +
-            (byPacket[AVERAGE_INDEX_L] << 0));
+    uwMax.abyTe[0] = byPacket[MAX_THRESHOLD_INDEX_L];
+    uwMax.abyTe[1] = byPacket[MAX_THRESHOLD_INDEX_H];
+    uwMin.abyTe[0] = byPacket[MIN_THRESHOLD_INDEX_L];
+    uwMin.abyTe[1] = byPacket[MIN_THRESHOLD_INDEX_H];
+    uwAvg.abyTe[0] = byPacket[AVERAGE_INDEX_L];
+    uwAvg.abyTe[1] = byPacket[AVERAGE_INDEX_H];
     
     #ifdef DEBUG
     sprintf(charBuffer,
-            "Slave:%u Buffer:%u Status:%u MaxThreshold:%u MinThreshold:%u Average:%u Values: ",
+            "Slv:%u Buf:%u Sta:%u Max:%u Min:%u Ave:%u Adc: ",
             byPacket[SLAVE_ID_INDEX],
             byPacket[STATUS_INDEX],
             byPacket[COMMAND_INDEX],
-            wMax,
-            wMin,
-            wAvg);
+            uwMax.wOrd,
+            uwMin.wOrd,
+            uwAvg.wOrd);
     ConsolePutROMString((ROM char*)charBuffer);
     #endif 
     
-    for (byIndex = ADC_VALUE_INDEX_H; byIndex < byLength; byIndex+=2)
+    for (byIndex = ADC_VALUE_INDEX_H; byIndex < byLength; byIndex++)
     {
-        wAdcVal = ((byPacket[ADC_VALUE_INDEX_H + byIndex] << 8) +
-                   (byPacket[ADC_VALUE_INDEX_L + byIndex] << 0));
-        sprintf(charBuffer, "%u,", wAdcVal);
+        uwAdcVal.abyTe[1] = byPacket[byIndex];
+        byIndex++;
+        uwAdcVal.abyTe[0] = byPacket[byIndex];
+        sprintf(charBuffer, "%u,", uwAdcVal.wOrd);
         ConsolePutROMString((ROM char*)charBuffer);
     }
     

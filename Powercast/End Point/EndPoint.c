@@ -34,14 +34,14 @@
 #define UNIQUE_SLAVE SLAVE_0_ID
 
 /* -- GLOBAL VARIABLES -- */
-volatile QWORD gqwTicks;
-volatile QWORD gqwPositionTicks;
+volatile WORD_BYTE_U gvuwTicks;
+volatile WORD_BYTE_U gvuwTimer;
+volatile WORD_BYTE_U gvuwPositionTicks;
 
 // We will not overflow since we will have only 10 bits in each of 10 ADCs. 1024*10=~11000
-volatile WORD gwCalibrationMaxThreshold;
-volatile WORD gwCalibrationMinThreshold;
-volatile WORD gwCalibrationSampleAvg;
-
+volatile WORD_BYTE_U gvuwCalibrationMaxThreshold;
+volatile WORD_BYTE_U gvuwCalibrationMinThreshold;
+volatile WORD_BYTE_U gvuwCalibrationSampleAvg;
 
 /* -- STATIC VARIABLES -- */
 static RECEIVED_MESSAGE scstReceivedMessage;
@@ -77,11 +77,10 @@ static void scDoMeasurePosition(WORD wADCChannel);
 **********************************************************************/
 void _ISRFAST __attribute__((interrupt, auto_psv)) _T1Interrupt(void)
 {
-    gqwTicks++;
-
     _T1IF = 0;  // Clear Timer 1 interrupt flag
-    TMR1 = 0xFFFF;
-    return;
+    TMR1 = PULSES;
+    
+    gvuwTimer.wOrd++;
 }
 
 
@@ -96,19 +95,18 @@ void _ISRFAST __attribute__((interrupt, auto_psv)) _T1Interrupt(void)
 
 @Revision History:
 DATE             NAME               REVISION COMMENT
-04/18/2017       Ruisi Ge           Initial Revision
+04/18/2017       Ali Haidous           Initial Revision
 *----------------------------------------------------------------------------*/
 static void scTimerInterruptInit (void)
 {
-    T1CON = 0x00; //Stops the Timer1 and reset control reg.
-    TMR1 = 0x00; //Clear contents of the timer register
-    PR1 = 0xFFFF; //Load the Period register with the value 0xFFFF
-    IPC0bits.T1IP = 0x01; //Setup Timer1 interrupt for desired priority level
-    // (This example assigns level 1 priority)
-    IFS0bits.T1IF = 0; //Clear the Timer1 interrupt status flag
-    IEC0bits.T1IE = 1; //Enable Timer1 interrupts
-    T1CONbits.TON = 1; //Start Timer1 with prescaler settings at 1:1 and
-    //clock source set to the internal instruction cycle
+	// Set up Timer1
+  	T1CON = 0x0000; 		// stops the timer1 and reset control flag
+  	TMR1 = PULSES;
+  	IPC0bits.T1IP = HIGHEST_PRIORITY; 	// setup Timer1 interrupt for desired priority level
+	IEC0bits.T1IE = 1; 		// enable Timer1 interrupts	
+	T1CON = 0x8010;		 	// enable timer1 with prescalar of 1:8 
+    
+    gvuwTimer.wOrd = 0;
 }
 
 /*----------------------------------------------------------------------------
@@ -158,12 +156,13 @@ static void scMainInit(void)
     /* Initialize static variables */
     scstReceivedMessage = (RECEIVED_MESSAGE) {0};
     scbySlaveStatus = INVALID_STATUS;
-    gqwTicks = 0;
-    gqwPositionTicks = 0;
+    gvuwTicks.wOrd = 0;
+    gvuwTimer.wOrd = 0;
+    gvuwPositionTicks.wOrd = 0;
     
-    gwCalibrationMaxThreshold = 0;
-    gwCalibrationMinThreshold = 0xFFFF;
-    gwCalibrationSampleAvg = 0;
+    gvuwCalibrationMaxThreshold.wOrd = 0;
+    gvuwCalibrationMinThreshold.wOrd = 0xFFFF;
+    gvuwCalibrationSampleAvg.wOrd = 0;
 
     for (byI = 0; byI < TOTAL_RESPONSE_BUFFERS; byI++)
     {
@@ -247,12 +246,12 @@ int main(void)
 
             case REQ_BUFFER_CMD:
                 byBufferIndex = scstReceivedMessage.Payload[BUFFER_INDEX];
-                scaabyResponseBuffer[byBufferIndex][MAX_THRESHOLD_INDEX_H] = (BYTE)(gwCalibrationMaxThreshold >> 8);
-                scaabyResponseBuffer[byBufferIndex][MAX_THRESHOLD_INDEX_L] = (BYTE)(gwCalibrationMaxThreshold >> 0);
-                scaabyResponseBuffer[byBufferIndex][MIN_THRESHOLD_INDEX_H] = (BYTE)(gwCalibrationMinThreshold >> 8);
-                scaabyResponseBuffer[byBufferIndex][MIN_THRESHOLD_INDEX_L] = (BYTE)(gwCalibrationMinThreshold >> 0);
-                scaabyResponseBuffer[byBufferIndex][AVERAGE_INDEX_H] = (BYTE)(gwCalibrationSampleAvg >> 8);
-                scaabyResponseBuffer[byBufferIndex][AVERAGE_INDEX_L] = (BYTE)(gwCalibrationSampleAvg >> 0);
+                scaabyResponseBuffer[byBufferIndex][MAX_THRESHOLD_INDEX_H] = gvuwCalibrationMaxThreshold.abyTe[1];
+                scaabyResponseBuffer[byBufferIndex][MAX_THRESHOLD_INDEX_L] = gvuwCalibrationMaxThreshold.abyTe[0];
+                scaabyResponseBuffer[byBufferIndex][MIN_THRESHOLD_INDEX_H] = gvuwCalibrationMinThreshold.abyTe[1];
+                scaabyResponseBuffer[byBufferIndex][MIN_THRESHOLD_INDEX_L] = gvuwCalibrationMinThreshold.abyTe[0];
+                scaabyResponseBuffer[byBufferIndex][AVERAGE_INDEX_H] = gvuwCalibrationSampleAvg.abyTe[1];
+                scaabyResponseBuffer[byBufferIndex][AVERAGE_INDEX_L] = gvuwCalibrationSampleAvg.abyTe[0];
                     
                 if (scbySlaveStatus == READ_ADC_PASSED)
                 {
@@ -269,25 +268,21 @@ int main(void)
                 break;
                 
             case REQ_POSITION_TIMER_CMD:
-                scabyPositionTimerBuffer[MAX_INDEX_H] = (BYTE)(gwCalibrationMaxThreshold >> 8);
-                scabyPositionTimerBuffer[MAX_INDEX_L] = (BYTE)(gwCalibrationMaxThreshold >> 0);
-                scabyPositionTimerBuffer[MIN_INDEX_H] = (BYTE)(gwCalibrationMinThreshold >> 8);
-                scabyPositionTimerBuffer[MIN_INDEX_L] = (BYTE)(gwCalibrationMinThreshold >> 0);
-                scabyPositionTimerBuffer[AVER_INDEX_H] = (BYTE)(gwCalibrationSampleAvg >> 8);
-                scabyPositionTimerBuffer[AVER_INDEX_L] = (BYTE)(gwCalibrationSampleAvg >> 0);
-                scabyPositionTimerBuffer[TICKS_BYTE_1_INDEX] = (BYTE)((gqwPositionTicks >> 56) & 0xFF);
-                scabyPositionTimerBuffer[TICKS_BYTE_2_INDEX] = (BYTE)((gqwPositionTicks >> 48) & 0xFF);
-                scabyPositionTimerBuffer[TICKS_BYTE_3_INDEX] = (BYTE)((gqwPositionTicks >> 40) & 0xFF);
-                scabyPositionTimerBuffer[TICKS_BYTE_4_INDEX] = (BYTE)((gqwPositionTicks >> 32) & 0xFF);
-                scabyPositionTimerBuffer[TICKS_BYTE_5_INDEX] = (BYTE)((gqwPositionTicks >> 24) & 0xFF);
-                scabyPositionTimerBuffer[TICKS_BYTE_6_INDEX] = (BYTE)((gqwPositionTicks >> 16) & 0xFF);
-                scabyPositionTimerBuffer[TICKS_BYTE_7_INDEX] = (BYTE)((gqwPositionTicks >> 8) & 0xFF);
-                scabyPositionTimerBuffer[TICKS_BYTE_8_INDEX] = (BYTE)((gqwPositionTicks >> 0) & 0xFF);
+                scabyPositionTimerBuffer[MAX_INDEX_H] = gvuwCalibrationMaxThreshold.abyTe[1];
+                scabyPositionTimerBuffer[MAX_INDEX_L] = gvuwCalibrationMaxThreshold.abyTe[0];
+                scabyPositionTimerBuffer[MIN_INDEX_H] = gvuwCalibrationMinThreshold.abyTe[1];
+                scabyPositionTimerBuffer[MIN_INDEX_L] = gvuwCalibrationMinThreshold.abyTe[0];
+                scabyPositionTimerBuffer[AVER_INDEX_H] = gvuwCalibrationSampleAvg.abyTe[1];
+                scabyPositionTimerBuffer[AVER_INDEX_L] = gvuwCalibrationSampleAvg.abyTe[0];
+                scabyPositionTimerBuffer[TIME_INDEX_H] = gvuwTimer.abyTe[1];
+                scabyPositionTimerBuffer[TIME_INDEX_L] = gvuwTimer.abyTe[0];
+                scabyPositionTimerBuffer[TICKS_INDEX_H] = gvuwPositionTicks.abyTe[1];
+                scabyPositionTimerBuffer[TICKS_INDEX_L] = gvuwPositionTicks.abyTe[0];
     
                 scTransmit(scabyPositionTimerBuffer, POSITION_TIMER_BUFFER_SIZE);
                 
                 // reset position ticks
-                gqwPositionTicks = 0;
+                gvuwPositionTicks.wOrd = 0;
                 
                 eSlaveCommand = INVALID_CMD;
                 break;
@@ -332,19 +327,20 @@ DATE             NAME               REVISION COMMENT
 static void scDoMeasurePosition(WORD wSensorChannel)
 {
     WORD wADCValue = 0;
-    
-    // reset timer
-    gqwTicks = 0;
+
+    // Reset timer
+    scTimerInterruptInit();
     while (TRUE)
     {
         wADCValue = scwADCRead(wSensorChannel, ADC_READ_DELAY);
         
-        // As soon a the max or min threshold is exceeded, break
-        if ((wADCValue > (gwCalibrationMaxThreshold+6)) ||
-            (wADCValue < (gwCalibrationMinThreshold-6)) ||
+        // As soon a the max or min threshold is exceeded,
+        // store the CPU ticks then break
+        if ((wADCValue > gvuwCalibrationMaxThreshold.wOrd) ||
+            (wADCValue < gvuwCalibrationMinThreshold.wOrd) ||
             (MODE != MODE_JUMPER_ON)) // Break out of loop by user input
         {
-            gqwPositionTicks = gqwTicks;
+            gvuwPositionTicks.wOrd = TMR1;
             break;
         }
     }
@@ -369,36 +365,32 @@ DATE             NAME               REVISION COMMENT
 static BOOL scfDoReadADC(WORD wSensorChannel)
 {
     BOOL fRetVal = FALSE;
-    WORD wADCValue = 0;
     BYTE byPacketIndex = 0;
     BYTE byBuffers = 0;
+    WORD_BYTE_U uwAdcVal;
 
     // Reset timer
-    gqwTicks = 0;
-    while (gqwTicks < TIME_TO_MEASURE_ADC_SLAVE)
+    scTimerInterruptInit();
+    while (gvuwTimer.wOrd < TIME_TO_MEASURE_ADC_SLAVE)
     {
-        wADCValue = scwADCRead(wSensorChannel, ADC_READ_DELAY);
+        uwAdcVal.wOrd = scwADCRead(wSensorChannel, ADC_READ_DELAY);
 
         // As soon a the max or min threshold is exceeded,
         // take ADC samples of size MAX_PACKET_SIZE*TOTAL_RESPONSE_BUFFERS
-        //if ((wADCValue > gwCalibrationMaxThreshold) ||
-        //    (wADCValue < gwCalibrationMinThreshold))
+        if ((uwAdcVal.wOrd > gvuwCalibrationMaxThreshold.wOrd) ||
+            (uwAdcVal.wOrd < gvuwCalibrationMinThreshold.wOrd))
         {
             fRetVal = TRUE;
-            while (byPacketIndex < MAX_PACKET_SIZE)
+            for (byBuffers = 0; byBuffers < TOTAL_RESPONSE_BUFFERS; byBuffers++)
             {
-                wADCValue = scwADCRead(wSensorChannel, ADC_READ_DELAY);
-                scaabyResponseBuffer[byBuffers][byPacketIndex + ADC_VALUE_INDEX_H] = (BYTE)(wADCValue >> 8);
-                scaabyResponseBuffer[byBuffers][byPacketIndex + ADC_VALUE_INDEX_L] = (BYTE)(wADCValue >> 0);
-                byPacketIndex += 2;
-                if ((byPacketIndex >= MAX_PACKET_SIZE) &&
-                    (byBuffers < TOTAL_RESPONSE_BUFFERS))
+                for (byPacketIndex = ADC_VALUE_INDEX_H; byPacketIndex < MAX_PACKET_SIZE; byPacketIndex++)
                 {
-                    byPacketIndex = 0;
-                    byBuffers++;
+                    uwAdcVal.wOrd = scwADCRead(wSensorChannel, ADC_READ_DELAY);
+                    scaabyResponseBuffer[byBuffers][byPacketIndex] = uwAdcVal.abyTe[1];
+                    byPacketIndex++;
+                    scaabyResponseBuffer[byBuffers][byPacketIndex] = uwAdcVal.abyTe[0];
                 }
             }
-            break;
         }
     }
 
@@ -428,29 +420,36 @@ static void scDoCalibrateSensor(WORD wSensorChannel)
     QWORD qwCount = 0;
     
     // Reset calibration values
-    gwCalibrationMaxThreshold = 0;
-    gwCalibrationMinThreshold = 0xFFFF;
-    gwCalibrationSampleAvg = 0;
+    gvuwCalibrationMaxThreshold.wOrd = 0;
+    gvuwCalibrationMinThreshold.wOrd = 0xFFFF;
+    gvuwCalibrationSampleAvg.wOrd = 0;
     
     // reset timer
-    gqwTicks = 0;
-    while (gqwTicks < ONE_SEC)
+    scTimerInterruptInit();
+    while (gvuwTimer.wOrd < ONE_SEC)
     {
         wPresentADCValue = scwADCRead(wSensorChannel, ADC_READ_DELAY);
 
-        if (wPresentADCValue > gwCalibrationMaxThreshold)
+        if (wPresentADCValue > gvuwCalibrationMaxThreshold.wOrd)
         {
-            gwCalibrationMaxThreshold = wPresentADCValue;
+            gvuwCalibrationMaxThreshold.wOrd = wPresentADCValue;
         }
-        else if (wPresentADCValue < gwCalibrationMinThreshold)
+        else if (wPresentADCValue < gvuwCalibrationMinThreshold.wOrd)
         {
-            gwCalibrationMinThreshold = wPresentADCValue;
+            gvuwCalibrationMinThreshold.wOrd = wPresentADCValue;
         }
         qwSumADCValues += wPresentADCValue;
         qwCount++;
     }
-    
-    gwCalibrationSampleAvg = (WORD)(qwSumADCValues/qwCount);
+    if (gvuwCalibrationMaxThreshold.wOrd < 1118)
+    {
+        gvuwCalibrationMaxThreshold.wOrd += 5;
+    }
+    if (gvuwCalibrationMinThreshold.wOrd > 5)
+    {
+        gvuwCalibrationMinThreshold.wOrd -= 5;
+    }
+    gvuwCalibrationSampleAvg.wOrd = (WORD)(qwSumADCValues/qwCount);
 }
 
 
